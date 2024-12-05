@@ -1,0 +1,17 @@
+{
+  "name": "Sift Connector",
+  "owner": "WSO2",
+  "category": "Adaptive Authentication Function",
+  "documentationUrl": "https://github.com/wso2-extensions/identity-fraud-detection-sift/tree/main/docs",
+  "description": "The Sift connector enables the invocation of the Sift API within the adaptive authentication script, providing risk-based authentication (RBA) to enhance security and prevent fraud.",
+  "status": "Active",
+  "labels": ["RBA"],
+  "releases": [
+    {
+      "tagName": "v1.0.0",
+      "products": [
+        "IS 7.0.0"
+      ]
+    }
+  ]
+}
