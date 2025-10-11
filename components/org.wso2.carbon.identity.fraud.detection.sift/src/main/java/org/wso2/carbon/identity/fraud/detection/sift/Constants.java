@@ -90,6 +90,10 @@ public class Constants {
 
     public static final double DEFAULT_ERROR_VALUE = -1;
 
+    // Internal constants
+    public static final String CUSTOM_PARAMS = "customParams";
+    public static final String AUTHENTICATION_CONTEXT = "authenticationContext";
+
     /**
      * Enum to hold the login status.
      */

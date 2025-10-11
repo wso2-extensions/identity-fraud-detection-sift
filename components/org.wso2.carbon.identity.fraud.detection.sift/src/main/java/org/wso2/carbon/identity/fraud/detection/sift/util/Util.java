@@ -18,6 +18,9 @@
 
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
+import com.siftscience.FieldSet;
+import com.siftscience.model.Browser;
+import com.siftscience.model.LoginFieldSet;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -32,6 +35,9 @@ import org.wso2.carbon.identity.application.authentication.framework.exception.F
 import org.wso2.carbon.identity.application.common.model.Property;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorException;
+import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.bean.ConnectorConfig;
@@ -55,6 +61,31 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT
 public class Util {
 
     private static final Log LOG = LogFactory.getLog(Util.class);
+
+    public static String buildSiftRequestPath(SiftFraudDetectorRequestDTO requestDTO) {
+
+        if (requestDTO.isReturnRiskScore()) {
+            return Constants.SIFT_API_URL + Constants.RETURN_SCORE_PARAM;
+        } else if (requestDTO.isReturnWorkflowDecision()) {
+            return Constants.SIFT_API_URL + Constants.RETURN_WORKFLOW_PARAM;
+        } else {
+            return Constants.SIFT_API_URL;
+        }
+    }
+
+    public static String setAPIKey(FieldSet<?> fieldSet, String tenantDomain)
+            throws IdentityFraudDetectorRequestException {
+
+        try {
+            JSONObject payload = new JSONObject(fieldSet.toJson());
+            payload.put(Constants.API_KEY, getSiftApiKey(tenantDomain));
+            return payload.toString();
+        } catch (FrameworkException e) {
+            throw new IdentityFraudDetectorRequestException("Error while retrieving Sift API key for tenant: " +
+                    tenantDomain, e);
+        }
+    }
+
 
     /**
      * Build the payload to be sent to Sift.
@@ -149,6 +180,56 @@ public class Util {
 
     }
 
+    protected static void processDefaultParameters(LoginFieldSet loginFieldSet,
+                                                     Map<String, Object> passedCustomParams) {
+
+        if (passedCustomParams == null) {
+            return;
+        }
+
+        if (passedCustomParams.containsKey(Constants.IP_KEY)) {
+            String ip = (String) passedCustomParams.get(Constants.IP_KEY);
+            if (StringUtils.isNotBlank(ip)) {
+                loginFieldSet.setIp(ip);
+            }
+            passedCustomParams.remove(Constants.IP_KEY);
+        }
+
+        if (passedCustomParams.containsKey(Constants.SESSION_ID_KEY)) {
+            String sessionId = (String) passedCustomParams.get(Constants.SESSION_ID_KEY);
+            if (StringUtils.isNotBlank(sessionId)) {
+                loginFieldSet.setSessionId(sessionId);
+            }
+            passedCustomParams.remove(Constants.SESSION_ID_KEY);
+        }
+
+        if (passedCustomParams.containsKey(Constants.USER_AGENT_KEY)) {
+            String userAgent = (String) passedCustomParams.get(Constants.USER_AGENT_KEY);
+            if (StringUtils.isNotBlank(userAgent)) {
+                loginFieldSet.setBrowser(new Browser().setUserAgent(userAgent));
+            }
+            passedCustomParams.remove(Constants.USER_AGENT_KEY);
+        }
+
+        // As the user_id is a mandatory field, it shouldn't be removed from the payload.
+        if (passedCustomParams.containsKey(Constants.USER_ID_KEY)) {
+            String userId = (String) passedCustomParams.get(Constants.USER_ID_KEY);
+            if (StringUtils.isNotBlank(userId)) {
+                loginFieldSet.setUserId(userId);
+            }
+            passedCustomParams.remove(Constants.USER_ID_KEY);
+        }
+    }
+
+    protected static void processCustomParameters(LoginFieldSet loginFieldSet, Map<String, Object> passedCustomParams) {
+
+        if (passedCustomParams != null) {
+            for (Map.Entry<String, Object> entry : passedCustomParams.entrySet()) {
+                loginFieldSet.setCustomField(entry.getKey(), entry.getValue().toString());
+            }
+        }
+    }
+
     /**
      * Get the custom parameters passed by the user.
      *
@@ -169,7 +250,7 @@ public class Util {
         return passedCustomParams;
     }
 
-    private static String getSiftApiKey(String tenantDomain) throws FrameworkException {
+    public static String getSiftApiKey(String tenantDomain) throws FrameworkException {
 
         String apiKey = getSiftConfigs(tenantDomain).get(SIFT_API_KEY_PROP);
         if (apiKey == null) {
@@ -228,7 +309,7 @@ public class Util {
         return SiftDataHolder.getInstance().getIdentityGovernanceService();
     }
 
-    private static Constants.LoginStatus getLoginStatus(String status) {
+    protected static Constants.LoginStatus getLoginStatus(String status) {
 
         if (Constants.LoginStatus.LOGIN_SUCCESS.getStatus().equalsIgnoreCase(status)) {
             return Constants.LoginStatus.LOGIN_SUCCESS;
@@ -239,7 +320,7 @@ public class Util {
         }
     }
 
-    private static String resolvePayloadData(String key, JsAuthenticationContext context) throws FrameworkException {
+    protected static String resolvePayloadData(String key, JsAuthenticationContext context) throws FrameworkException {
 
         switch (key) {
             case Constants.USER_ID_KEY:
@@ -255,6 +336,20 @@ public class Util {
         }
     }
 
+    protected static String resolvePayloadData(String key, AuthenticationContext context) throws FrameworkException {
+
+        switch (key) {
+            case Constants.USER_ID_KEY:
+                return getHashedUserId(context);
+            case Constants.USER_AGENT_KEY:
+                return getUserAgent(context);
+            case Constants.IP_KEY:
+                return getIpAddress(context);
+            default:
+                return null;
+        }
+    }
+
     /**
      * Hashed username is used as the user identifier and is qualified with both the user-store domain
      * and the tenant domain. If the login attempt fails in the current step,
@@ -265,15 +360,10 @@ public class Util {
      */
     private static String getHashedUserId(JsAuthenticationContext ctx) throws FrameworkException {
 
-
         AuthenticationContext authenticationContext = ctx.getWrapped();
-        int currentStep = authenticationContext.getCurrentStep();
-        StepConfig stepConfig = authenticationContext.getSequenceConfig().getStepMap().get(currentStep);
-        if (stepConfig != null && stepConfig.getAuthenticatedUser() != null) {
-            String username = stepConfig.getAuthenticatedUser().getUsernameAsSubjectIdentifier(true, true);
-            if (StringUtils.isNotBlank(username)) {
-                return DigestUtils.sha256Hex(username);
-            }
+        String userIdFromStep = getHashedUserId(authenticationContext);
+        if (userIdFromStep != null) {
+            return userIdFromStep;
         }
 
         String memberKey = JS_CURRENT_KNOWN_SUBJECT;
@@ -296,11 +386,40 @@ public class Util {
         throw new FrameworkException("Unable to resolve user ID from the ctx or step configuration.");
     }
 
+    /**
+     * Get the hashed user ID from the current step's authenticated user.
+     *
+     * @param authenticationContext Authentication context.
+     * @return Hashed user ID or null if not available.
+     */
+    private static String getHashedUserId(AuthenticationContext authenticationContext) {
+
+        int currentStep = authenticationContext.getCurrentStep();
+        if (currentStep == 0) {
+            // During logout requests, the current step is 0. Hence, to continue identifying the user, set 1 as
+            // the current step.
+            currentStep = 1;
+        }
+        StepConfig stepConfig = authenticationContext.getSequenceConfig().getStepMap().get(currentStep);
+        if (stepConfig != null && stepConfig.getAuthenticatedUser() != null) {
+            String username = stepConfig.getAuthenticatedUser().getUsernameAsSubjectIdentifier(true, true);
+            if (StringUtils.isNotBlank(username)) {
+                return DigestUtils.sha256Hex(username);
+            }
+        }
+        return null;
+    }
+
 
     private static String getUserAgent(JsAuthenticationContext context) {
 
-        Object httpServletRequest = ((TransientObjectWrapper<?>) context.getWrapped().getParameter
-                (HTTP_SERVLET_REQUEST)).getWrapped();
+        return getUserAgent(context.getWrapped());
+    }
+
+    private static String getUserAgent(AuthenticationContext context) {
+
+        Object httpServletRequest =
+                ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();
         if (httpServletRequest instanceof HttpServletRequestWrapper) {
             HttpServletRequestWrapper httpServletRequestWrapper = (HttpServletRequestWrapper) httpServletRequest;
             return httpServletRequestWrapper.getHeader(USER_AGENT_HEADER);
@@ -310,8 +429,13 @@ public class Util {
 
     private static String getIpAddress(JsAuthenticationContext context) {
 
-        Object httpServletRequest = ((TransientObjectWrapper<?>) context.getWrapped().getParameter
-                (HTTP_SERVLET_REQUEST)).getWrapped();
+        return getIpAddress(context.getWrapped());
+    }
+
+    private static String getIpAddress(AuthenticationContext context) {
+
+        Object httpServletRequest =
+                ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();
         if (httpServletRequest instanceof HttpServletRequestWrapper) {
             HttpServletRequestWrapper authenticationFrameworkWrapper = (HttpServletRequestWrapper) httpServletRequest;
             return authenticationFrameworkWrapper.getRemoteAddr();

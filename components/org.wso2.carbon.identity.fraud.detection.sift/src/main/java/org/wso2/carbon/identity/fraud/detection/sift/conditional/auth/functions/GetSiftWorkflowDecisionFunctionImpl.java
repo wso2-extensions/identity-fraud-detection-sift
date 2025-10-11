@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions;
 
+import java.util.HashMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
@@ -35,13 +36,22 @@ import org.wso2.carbon.identity.application.authentication.framework.config.mode
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
+import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
+import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorException;
 
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.AUTHENTICATION_CONTEXT;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.CUSTOM_PARAMS;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.getMaskedSiftPayload;
 
 /**
@@ -57,9 +67,9 @@ public class GetSiftWorkflowDecisionFunctionImpl implements GetSiftWorkflowDecis
         this.httpClient = httpClient;
     }
 
-    @Override
-    @HostAccess.Export
-    public String getSiftWorkFlowDecision(JsAuthenticationContext context, String loginStatus, Object... paramMap)
+//    @Override
+//    @HostAccess.Export
+    public String getSiftWorkFlowDecisionOld(JsAuthenticationContext context, String loginStatus, Object... paramMap)
             throws FrameworkException {
 
         Map<String, Object> passedCustomParams = Util.getPassedCustomParams(paramMap);
@@ -120,6 +130,35 @@ public class GetSiftWorkflowDecisionFunctionImpl implements GetSiftWorkflowDecis
             throw new FrameworkException("Error while executing the request: " + e);
         }
         return null;
+    }
+
+    @Override
+    @HostAccess.Export
+    public String getSiftWorkFlowDecision(JsAuthenticationContext context, String loginStatus, Object... paramMap)
+            throws FrameworkException {
+
+        Map<String, Object> passedCustomParams = Util.getPassedCustomParams(paramMap);
+        boolean isLoggingEnabled = Util.isLoggingEnabled(passedCustomParams);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(CUSTOM_PARAMS, passedCustomParams);
+        properties.put(AUTHENTICATION_CONTEXT, context);
+        properties.put(Constants.LOGIN_STATUS, loginStatus);
+        properties.put(TENANT_DOMAIN, context.getWrapped().getTenantDomain());
+
+        SiftFraudDetectorRequestDTO requestDTO = new SiftFraudDetectorRequestDTO(
+                FraudDetectorConstants.FraudDetectionEvents.LOGIN, properties);
+        requestDTO.setLogRequestPayload(isLoggingEnabled);
+        requestDTO.setReturnWorkflowDecision(true);
+
+        IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
+        SiftFraudDetectorResponseDTO responseDTO
+                = (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
+        String workflowDecision = responseDTO.getWorkflowDecision();
+        if (isLoggingEnabled) {
+            LOG.info("Sift workflow decision id: " + workflowDecision);
+        }
+        return workflowDecision;
     }
 
     private boolean isATOAbuseType(JSONObject workflowStatus) {

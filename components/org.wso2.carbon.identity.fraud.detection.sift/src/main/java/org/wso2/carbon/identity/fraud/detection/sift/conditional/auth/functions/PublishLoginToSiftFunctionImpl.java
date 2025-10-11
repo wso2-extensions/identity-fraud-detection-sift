@@ -33,13 +33,22 @@ import org.wso2.carbon.identity.application.authentication.framework.config.mode
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
+import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
+import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.AUTHENTICATION_CONTEXT;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.CUSTOM_PARAMS;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.getMaskedSiftPayload;
 
 /**
@@ -55,9 +64,9 @@ public class PublishLoginToSiftFunctionImpl implements PublishLoginToSiftFunctio
         this.httpClient = httpClient;
     }
 
-    @Override
-    @HostAccess.Export
-    public void publishLoginEventToSift(JsAuthenticationContext context, String loginStatus, Object... paramMap)
+    // @Override
+    // @HostAccess.Export
+    public void publishLoginEventToSift_Old(JsAuthenticationContext context, String loginStatus, Object... paramMap)
             throws FrameworkException {
 
         HttpPost request = new HttpPost(Constants.SIFT_API_URL);
@@ -68,6 +77,7 @@ public class PublishLoginToSiftFunctionImpl implements PublishLoginToSiftFunctio
         boolean isLoggingEnabled = Util.isLoggingEnabled(passedCustomParams);
 
         JSONObject payload = Util.buildPayload(context, loginStatus, passedCustomParams);
+        //JSONObject payload = Util.publishLoginWithSiftSDK(context, loginStatus, passedCustomParams);
 
         if (isLoggingEnabled) {
             LOG.info("Payload sent to Sift for login event publishing: " + getMaskedSiftPayload(payload));
@@ -97,6 +107,34 @@ public class PublishLoginToSiftFunctionImpl implements PublishLoginToSiftFunctio
 
         } catch (IOException e) {
             throw new FrameworkException("Error occurred while publishing login event information to Sift.", e);
+        }
+    }
+
+    @Override
+    @HostAccess.Export
+    public void publishLoginEventToSift(JsAuthenticationContext context, String loginStatus, Object... paramMap)
+            throws FrameworkException {
+
+        Map<String, Object> passedCustomParams = Util.getPassedCustomParams(paramMap);
+        boolean isLoggingEnabled = Util.isLoggingEnabled(passedCustomParams);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(CUSTOM_PARAMS, passedCustomParams);
+        properties.put(AUTHENTICATION_CONTEXT, context);
+        properties.put(Constants.LOGIN_STATUS, loginStatus);
+        properties.put(TENANT_DOMAIN, context.getWrapped().getTenantDomain());
+
+        SiftFraudDetectorRequestDTO requestDTO = new SiftFraudDetectorRequestDTO(
+                FraudDetectorConstants.FraudDetectionEvents.LOGIN, properties);
+        requestDTO.setLogRequestPayload(isLoggingEnabled);
+
+        IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
+        SiftFraudDetectorResponseDTO responseDTO =
+                (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
+        if (FraudDetectorConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+            LOG.info("Successfully published login event information to Sift.");
+        } else {
+            throw new FrameworkException("Error occurred while publishing login event information to Sift.");
         }
     }
 }

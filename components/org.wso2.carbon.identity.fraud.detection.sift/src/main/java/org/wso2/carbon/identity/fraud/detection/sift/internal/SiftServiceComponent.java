@@ -33,6 +33,7 @@ import org.wso2.carbon.identity.application.authentication.framework.JsFunctionR
 import org.wso2.carbon.identity.core.util.IdentityCoreInitializedEvent;
 import org.wso2.carbon.identity.fraud.detection.sift.HttpClientManager;
 import org.wso2.carbon.identity.fraud.detection.sift.SiftConnectorConfig;
+import org.wso2.carbon.identity.fraud.detection.sift.SiftFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.CallSiftOnLoginFunction;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.CallSiftOnLoginFunctionImpl;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.GetSiftWorkflowDecisionFunction;
@@ -40,6 +41,7 @@ import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunction;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunctionImpl;
 import org.wso2.carbon.identity.fraud.detection.sift.models.ConnectionConfig;
+import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.common.IdentityConnectorConfig;
 
@@ -79,6 +81,10 @@ public class SiftServiceComponent {
             BundleContext bundleContext = context.getBundleContext();
             SiftConnectorConfig siftConfigConnector = new SiftConnectorConfig();
             bundleContext.registerService(IdentityConnectorConfig.class.getName(), siftConfigConnector, null);
+
+            IdentityFraudDetector siftFraudDetector = new SiftFraudDetector();
+            SiftDataHolder.getInstance().setSiftFraudDetector(siftFraudDetector);
+            bundleContext.registerService(IdentityFraudDetector.class.getName(), siftFraudDetector, null);
         } catch (Throwable e) {
             LOG.error("Error while activating SiftServiceComponent.", e);
         }

@@ -41,6 +41,19 @@
         <tag>HEAD</tag>
     </scm>
 
+    <repositories>
+        <repository>
+            <id>wso2-nexus-support</id>
+            <name>WSO2 internal Repository</name>
+            <url>https://support-maven.wso2.org/nexus/content/repositories/updates-2.0/</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+                <checksumPolicy>ignore</checksumPolicy>
+            </releases>
+        </repository>
+    </repositories>
+
     <modules>
         <module>components/org.wso2.carbon.identity.fraud.detection.sift</module>
     </modules>
@@ -48,9 +61,35 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>com.siftscience</groupId>
+                <artifactId>sift-java</artifactId>
+                <version>3.21.2</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.squareup.okhttp3</groupId>
+                        <artifactId>okhttp</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.squareup.okio</groupId>
+                        <artifactId>okio</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
                 <groupId>org.wso2.carbon.identity.framework</groupId>
                 <artifactId>org.wso2.carbon.identity.application.authentication.framework</artifactId>
                 <version>${carbon.identity.framework.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.wso2.carbon.identity.framework</groupId>
+                <artifactId>org.wso2.carbon.identity.event</artifactId>
+                <version>${carbon.identity.framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.wso2.carbon.identity.framework</groupId>
+                <artifactId>org.wso2.carbon.identity.fraud.detectors.core</artifactId>
+                <version>7.0.78.75</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>

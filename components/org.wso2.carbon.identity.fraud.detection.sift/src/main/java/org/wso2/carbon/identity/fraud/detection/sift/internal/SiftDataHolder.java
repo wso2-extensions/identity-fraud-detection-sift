@@ -19,6 +19,7 @@
 package org.wso2.carbon.identity.fraud.detection.sift.internal;
 
 import org.wso2.carbon.identity.application.authentication.framework.JsFunctionRegistry;
+import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 
 /**
@@ -29,6 +30,7 @@ public class SiftDataHolder {
     private static SiftDataHolder instance = new SiftDataHolder();
     private JsFunctionRegistry jsFunctionRegistry;
     private IdentityGovernanceService identityGovernanceService;
+    private IdentityFraudDetector siftFraudDetector;
 
     private SiftDataHolder() {
 
@@ -58,5 +60,15 @@ public class SiftDataHolder {
     public void setIdentityGovernanceService(IdentityGovernanceService identityGovernanceService) {
 
         this.identityGovernanceService = identityGovernanceService;
+    }
+
+    public IdentityFraudDetector getSiftFraudDetector() {
+
+        return siftFraudDetector;
+    }
+
+    public void setSiftFraudDetector(IdentityFraudDetector siftFraudDetector) {
+
+        this.siftFraudDetector = siftFraudDetector;
     }
 }
