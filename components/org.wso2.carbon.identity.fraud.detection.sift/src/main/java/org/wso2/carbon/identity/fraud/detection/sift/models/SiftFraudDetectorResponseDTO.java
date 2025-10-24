@@ -8,9 +8,10 @@ public class SiftFraudDetectorResponseDTO extends FraudDetectorResponseDTO {
     private double riskScore;
     private String workflowDecision;
 
-    public SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus status) {
+    public SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus status,
+                                        FraudDetectorConstants.FraudDetectionEvents eventName) {
 
-        super(status);
+        super(status, eventName);
     }
 
     public void setRiskScore(double riskScore) {

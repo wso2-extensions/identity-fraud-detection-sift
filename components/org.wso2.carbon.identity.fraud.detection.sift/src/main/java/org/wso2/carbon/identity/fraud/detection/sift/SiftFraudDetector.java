@@ -15,6 +15,11 @@ import org.wso2.carbon.identity.application.authentication.framework.util.Framew
 import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLoginEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLogoutEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftUpdatePasswordEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftUserRegistrationEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftVerificationEventUtil;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
 import org.wso2.carbon.identity.fraud.detectors.core.AbstractIdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
@@ -76,16 +81,7 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
                     "HTTP error code: " + closeableHttpResponse.getStatusLine().getStatusCode());
         }
 
-        String responseContent = getResponseContent(closeableHttpResponse);
-        switch (requestDTO.getEventName()) {
-            case LOGIN:
-                return SiftEventUtil.handleLoginResponse(responseContent, (SiftFraudDetectorRequestDTO) requestDTO);
-            case LOGOUT:
-                return SiftEventUtil.handleLogoutResponse(responseContent);
-            default:
-                throw new SiftUnsupportedEventException(requestDTO.getEventName()
-                        + " event cannot be handled by Sift.");
-        }
+        return SiftEventUtil.handleResponse(closeableHttpResponse, requestDTO);
     }
 
     @Override
@@ -97,26 +93,5 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
     private SiftFraudDetectorRequestDTO convertToSiftRequestDTO(FraudDetectorRequestDTO requestDTO) {
 
         return new SiftFraudDetectorRequestDTO(requestDTO.getEventName(), requestDTO.getProperties());
-    }
-
-    private String getResponseContent(CloseableHttpResponse closeableHttpResponse)
-            throws IdentityFraudDetectorResponseException{
-
-        String responseContent;
-        try {
-            HttpEntity entity = closeableHttpResponse.getEntity();
-            if (entity == null) {
-                throw new IdentityFraudDetectorResponseException("Error occurred while reading response from Sift. " +
-                        "Response entity is null.");
-            }
-            responseContent = EntityUtils.toString(entity);
-            if (StringUtils.isBlank(responseContent)) {
-                throw new IdentityFraudDetectorResponseException("Error occurred while reading response from Sift. " +
-                        "Response content is empty.");
-            }
-            return responseContent;
-        } catch (IOException e) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while reading response from Sift.", e);
-        }
     }
 }

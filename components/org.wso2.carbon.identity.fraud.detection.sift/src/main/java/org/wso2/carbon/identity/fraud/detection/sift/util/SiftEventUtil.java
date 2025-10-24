@@ -1,223 +1,309 @@
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
-import com.siftscience.exception.InvalidFieldException;
-import com.siftscience.model.AbuseScore;
-import com.siftscience.model.Browser;
-import com.siftscience.model.CreateAccountFieldSet;
-import com.siftscience.model.EventResponseBody;
-import com.siftscience.model.LoginFieldSet;
-import com.siftscience.model.LogoutFieldSet;
-import com.siftscience.model.ScoreResponse;
-import com.siftscience.model.WorkflowStatus;
-import com.siftscience.model.WorkflowStatusHistoryConfig;
-import com.siftscience.model.WorkflowStatusHistoryItem;
-import org.wso2.carbon.identity.application.authentication.framework.config.model.graph.js.JsAuthenticationContext;
-import org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext;
-import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
-import org.wso2.carbon.identity.fraud.detection.sift.Constants;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.util.EntityUtils;
+import org.wso2.carbon.identity.application.common.model.User;
+import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
+import org.wso2.carbon.identity.fraud.detectors.core.exception.FraudDetectionConfigServerException;
+import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorException;
 import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
 import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
 import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detectors.core.util.EventUtil;
+import org.wso2.carbon.user.core.UserStoreManager;
+import org.wso2.carbon.user.core.util.UserCoreUtil;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
-import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.CONTEXT;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.AUTHENTICATION_CONTEXT;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.CUSTOM_PARAMS;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_ACCOUNT_TAKEOVER;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_DECISION;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_SESSION;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.getLoginStatus;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.processCustomParameters;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.processDefaultParameters;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.resolvePayloadData;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_CLAIMS;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_NAME;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_DOMAIN;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_MANAGER;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.REMOTE_ADDRESS;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_HEADER;
+import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.GIVEN_NAME;
+import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.SURNAME;
+import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
 public class SiftEventUtil {
+
+    private static final Log LOG = LogFactory.getLog(SiftEventUtil.class);
+    private static final String E164_REGEX = "^\\+[1-9]\\d{1,14}$";
 
     public static String buildSiftEventPayload(SiftFraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectorRequestException, SiftUnsupportedEventException {
 
         switch (requestDTO.getEventName()) {
             case LOGIN:
-                return handleLoginEventPayload(requestDTO);
+                return SiftLoginEventUtil.handleLoginEventPayload(requestDTO);
             case LOGOUT:
-                return handleLogoutEventPayload(requestDTO);
-            case POST_USER_REGISTRATION:
-                // return handlePostUserRegistrationEventPayload(requestDTO);
+                return SiftLogoutEventUtil.handleLogoutEventPayload(requestDTO);
+            case POST_USER_CREATION:
+                 return SiftUserRegistrationEventUtil.handlePostUserRegistrationEventPayload(requestDTO);
+            case PRE_UPDATE_PASSWORD_NOTIFICATION:
+            case POST_UPDATE_PASSWORD:
+                return SiftUpdatePasswordEventUtil.handleUpdatePasswordEventPayload(requestDTO);
+            case NOTIFICATION_BASED_VERIFICATION:
+                return SiftVerificationEventUtil.handleVerificationEventPayload(requestDTO);
+            case POST_UPDATE_USER_PROFILE:
+                return SiftUserProfileUpdateEventUtil.handlePostUserProfileUpdateEventPayload(requestDTO);
             default:
                 throw new SiftUnsupportedEventException("Unsupported event name by Sift: "
                         + requestDTO.getEventName());
         }
     }
 
-    public static String handleLoginEventPayload(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+    public static FraudDetectorResponseDTO handleResponse(CloseableHttpResponse closeableHttpResponse,
+                                                          FraudDetectorRequestDTO requestDTO)
+            throws IdentityFraudDetectorResponseException, SiftUnsupportedEventException {
 
-        Map<String, Object> properties = requestDTO.getProperties();
-        JsAuthenticationContext context = properties.get(AUTHENTICATION_CONTEXT) != null ?
-                (JsAuthenticationContext) properties.get(AUTHENTICATION_CONTEXT) : null;
-        if (context == null) {
-            throw new IdentityFraudDetectorRequestException("Authentication context is null in the request.");
-        }
-
-        try {
-            String loginStatus = getLoginStatus((String)properties.get(Constants.LOGIN_STATUS)).getSiftValue();
-            LoginFieldSet loginFieldSet = new LoginFieldSet()
-                    .setLoginStatus(loginStatus)
-                    .setUserId(resolvePayloadData(Constants.USER_ID_KEY, context))
-                    .setBrowser(new Browser().setUserAgent(resolvePayloadData(Constants.USER_AGENT_KEY, context)))
-                    .setIp(resolvePayloadData(Constants.IP_KEY, context))
-                    .setSessionId(resolvePayloadData(Constants.SESSION_ID_KEY, context));
-            Map<String, Object> passedCustomParams = properties.get(CUSTOM_PARAMS) != null ?
-                    (Map<String, Object>) properties.get(CUSTOM_PARAMS) : null;
-            processDefaultParameters(loginFieldSet, passedCustomParams);
-            processCustomParameters(loginFieldSet, passedCustomParams);
-            loginFieldSet.validate();
-            return setAPIKey(loginFieldSet, context.getWrapped().getTenantDomain());
-        } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building login event payload: "
-                    + e.getMessage(), e);
-        } catch (FrameworkException e) {
-            throw new IdentityFraudDetectorRequestException("Error while resolving payload data: "
-                    + e.getMessage(), e);
+        String responseContent = getResponseContent(closeableHttpResponse);
+        switch (requestDTO.getEventName()) {
+            case LOGIN:
+                return SiftLoginEventUtil.handleLoginResponse(responseContent,
+                        (SiftFraudDetectorRequestDTO) requestDTO);
+            case LOGOUT:
+                return SiftLogoutEventUtil.handleLogoutResponse(responseContent,
+                        (SiftFraudDetectorRequestDTO) requestDTO);
+            case POST_USER_CREATION:
+                return SiftUserRegistrationEventUtil.handlePostUserRegistrationResponse(responseContent,
+                        (SiftFraudDetectorRequestDTO) requestDTO);
+            case PRE_UPDATE_PASSWORD_NOTIFICATION:
+            case POST_UPDATE_PASSWORD:
+                return SiftUpdatePasswordEventUtil.handleUpdatePasswordResponse(responseContent,
+                        (SiftFraudDetectorRequestDTO) requestDTO);
+            case NOTIFICATION_BASED_VERIFICATION:
+                return SiftVerificationEventUtil.handleVerificationResponse(responseContent,
+                        (SiftFraudDetectorRequestDTO) requestDTO);
+            case POST_UPDATE_USER_PROFILE:
+                return SiftUserProfileUpdateEventUtil.handlePostUserProfileUpdateResponse(responseContent,
+                        (SiftFraudDetectorRequestDTO) requestDTO);
+            default:
+                throw new SiftUnsupportedEventException(requestDTO.getEventName()
+                        + " event cannot be handled by Sift.");
         }
     }
 
-    public static FraudDetectorResponseDTO handleLoginResponse(String responseContent,
-                                                               SiftFraudDetectorRequestDTO requestDTO)
+    private static String getResponseContent(CloseableHttpResponse closeableHttpResponse)
             throws IdentityFraudDetectorResponseException {
 
-        EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
-        double riskScore = 0;
-        String workflowDecision = null;
-
-        if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus());
-        }
-
-        if (requestDTO.isReturnRiskScore()) {
-
-            ScoreResponse scoreResponse = responseBody.getScoreResponse();
-            AbuseScore abuseScore = scoreResponse != null && scoreResponse.getScores() != null ?
-                    scoreResponse.getScores().get(SIFT_ACCOUNT_TAKEOVER) : null;
-            if (abuseScore != null) {
-                riskScore = abuseScore.getScore();
+        String responseContent;
+        try {
+            HttpEntity entity = closeableHttpResponse.getEntity();
+            if (entity == null) {
+                throw new IdentityFraudDetectorResponseException("Error occurred while reading response from Sift. " +
+                        "Response entity is null.");
             }
-
-        } else if (requestDTO.isReturnWorkflowDecision()) {
-
-            ScoreResponse scoreResponse = responseBody.getScoreResponse();
-            for (WorkflowStatus workflowStatus : scoreResponse.getWorkflowStatuses()) {
-                if (workflowStatus != null && isATOAbuseType(workflowStatus) && isSessionType(workflowStatus)) {
-                    workflowDecision = getDecision(workflowStatus);
-                }
+            responseContent = EntityUtils.toString(entity);
+            if (StringUtils.isBlank(responseContent)) {
+                throw new IdentityFraudDetectorResponseException("Error occurred while reading response from Sift. " +
+                        "Response content is empty.");
             }
+            return responseContent;
+        } catch (IOException e) {
+            throw new IdentityFraudDetectorResponseException("Error occurred while reading response from Sift.", e);
         }
-
-        SiftFraudDetectorResponseDTO responseDTO = new SiftFraudDetectorResponseDTO(
-                FraudDetectorConstants.ExecutionStatus.SUCCESS);
-        responseDTO.setRiskScore(riskScore);
-        responseDTO.setWorkflowDecision(workflowDecision);
-        return responseDTO;
     }
 
-    public static String handleLogoutEventPayload(SiftFraudDetectorRequestDTO requestDTO)
+    protected static String resolveUserStoreDomain(Map<String, Object> properties)
             throws IdentityFraudDetectorRequestException {
 
-        Map<String, Object> properties = requestDTO.getProperties();
-        String tenantDomain = (String) properties.get(TENANT_DOMAIN);
-        AuthenticationContext context = (AuthenticationContext) properties.get(CONTEXT);
-        try {
-            LogoutFieldSet logoutFieldSet = new LogoutFieldSet()
-                    .setUserId(resolvePayloadData(Constants.USER_ID_KEY, context))
-                    .setBrowser(new Browser().setUserAgent(resolvePayloadData(Constants.USER_AGENT_KEY, context)))
-                    .setIp(resolvePayloadData(Constants.IP_KEY, context));
-            logoutFieldSet.validate();
-            return setAPIKey(logoutFieldSet, tenantDomain);
-        } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building logout event payload: "
-                    + e.getMessage(), e);
-        } catch (FrameworkException e) {
-            throw new IdentityFraudDetectorRequestException("Error while resolving payload data: "
-                    + e.getMessage(), e);
+        String userStoreDomain = properties.get(USER_STORE_DOMAIN) != null ?
+                (String) properties.get(USER_STORE_DOMAIN) : null;
+
+        if (userStoreDomain == null) {
+
+            UserStoreManager userStoreManager = (UserStoreManager) properties.get(USER_STORE_MANAGER);
+            if (userStoreManager == null) {
+                throw new IdentityFraudDetectorRequestException("Cannot resolve user id. User store manager is null.");
+            }
+            userStoreDomain = userStoreManager.getRealmConfiguration().getUserStoreProperty(PROPERTY_DOMAIN_NAME);
+            properties.put(USER_STORE_DOMAIN, userStoreDomain);
+            return userStoreDomain;
         }
+
+        return userStoreDomain;
     }
 
-    public static FraudDetectorResponseDTO handleLogoutResponse(String responseContent)
-            throws IdentityFraudDetectorResponseException {
+    protected static String resolveUserId(Map<String, Object> properties) throws IdentityFraudDetectorRequestException {
 
-        EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
-        if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus());
+        String username;
+        String tenantDomain;
+        String userStoreDomain;
+        if (properties.containsKey(USER)) {
+            User userObj = (User) properties.get(USER);
+            username = userObj.getUserName();
+            properties.put(USER_NAME, username);
+            tenantDomain = userObj.getTenantDomain();
+            properties.put(TENANT_DOMAIN, tenantDomain);
+            userStoreDomain = userObj.getUserStoreDomain();
+            properties.put(USER_STORE_DOMAIN, userStoreDomain);
+        } else {
+            username = properties.get(USER_NAME) != null ? (String) properties.get(USER_NAME) : null;
+            tenantDomain = properties.get(TENANT_DOMAIN) != null ? (String) properties.get(TENANT_DOMAIN) : null;
+            userStoreDomain = resolveUserStoreDomain(properties);
         }
-        return new SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus.SUCCESS);
+
+        if (StringUtils.isEmpty(username) || StringUtils.isEmpty(tenantDomain) ||
+                StringUtils.isEmpty(userStoreDomain)) {
+            throw new IdentityFraudDetectorRequestException("Cannot resolve user id. Username, tenant domain " +
+                    "or user store domain is null.");
+        }
+
+        return DigestUtils.sha256Hex(getFullQualifiedUsername(username, userStoreDomain, tenantDomain));
     }
 
-    public static String handlePostUserRegistrationEventPayload(FraudDetectorRequestDTO requestDTO)
+    private static String getFullQualifiedUsername(String tenantAwareUsername, String userStoreDomain,
+                                                   String tenantDomain) {
+
+        String fullyQualifiedUsername = UserCoreUtil.addDomainToName(tenantAwareUsername, userStoreDomain);
+        fullyQualifiedUsername = UserCoreUtil.addTenantDomainToEntry(fullyQualifiedUsername, tenantDomain);
+        return fullyQualifiedUsername;
+    }
+
+    protected static String resolveSessionId(Map<String, Object> properties)
             throws IdentityFraudDetectorRequestException {
 
-        Map<String, Object> properties = requestDTO.getProperties();
-        String tenantDomain = (String) properties.get(TENANT_DOMAIN);
-        try {
-            CreateAccountFieldSet fieldSet = new CreateAccountFieldSet()
-                    .setUserId("")
-                    .setSessionId("")
-                    .setSocialSignOnType("")
-                    .setBrowser(new Browser())
-                    .setIp("");
-            fieldSet.validate();
-            return setAPIKey(fieldSet, tenantDomain);
-        } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building user registration event payload: "
-                    + e.getMessage(), e);
-        }
-    }
-
-    private static boolean isATOAbuseType(WorkflowStatus workflowStatus) {
-
-        for (String abuseType : workflowStatus.getAbuseTypes()) {
-            if (SIFT_ACCOUNT_TAKEOVER.equals(abuseType)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isSessionType(WorkflowStatus workflowStatus) {
-
-        if (workflowStatus.getEntity() == null) {
-            return false;
-        }
-        return SIFT_SESSION.equals(workflowStatus.getEntity().getType());
-    }
-
-    private static String getDecision(WorkflowStatus workflowStatus) {
-
-        if (workflowStatus.getHistory() == null) {
-            return null;
-        }
-        for (WorkflowStatusHistoryItem historyItem : workflowStatus.getHistory()) {
-            if (SIFT_DECISION.equals(historyItem.getApp())) {
-                WorkflowStatusHistoryConfig config = historyItem.getConfig();
-                if (config != null) {
-                    return config.getDecisionId();
-                }
-            }
-        }
+        // TODO: Implement session id resolution logic.
         return null;
     }
 
-    private static boolean isAllowPIIInPayload() {
+    protected static String validateMobileNumberFormat(String mobileNumber) {
 
-        return true;
+        if (StringUtils.isEmpty(mobileNumber)) {
+            return null;
+        }
+        if (mobileNumber.matches(E164_REGEX)) {
+            return mobileNumber;
+        } else {
+            LOG.debug("Mobile number: " + mobileNumber + " is not in E.164 format. Hence not " +
+                    "adding to the payload.");
+            return null;
+        }
+    }
+
+    protected static String resolveUserClaim(Map<String, Object> properties, String claimUri)
+            throws IdentityFraudDetectorRequestException {
+
+        if (!isAllowUserInfoInPayload(properties)) {
+            LOG.debug("Cannot resolve claim: " + claimUri + " as user info is not allowed in payload.");
+            return null;
+        }
+
+        Map<String, String> userClaims = properties.get(USER_CLAIMS) != null ?
+                (Map<String, String>) properties.get(USER_CLAIMS) : null;
+        if (userClaims != null) {
+            String claimValue = userClaims.get(claimUri);
+            if (StringUtils.isNotEmpty(claimValue)) {
+                return claimValue;
+            }
+        }
+        try {
+            String claimValue = getUserClaimValuesFromDB(properties, new String[]{claimUri}).get(claimUri);
+            if (StringUtils.isNotEmpty(claimValue)) {
+                addClaimToProperties(properties, claimUri, claimValue);
+            }
+            return claimValue;
+        } catch (IdentityFraudDetectorRequestException e) {
+            LOG.debug("Cannot resolve claim: " + claimUri + " from the user store.", e);
+            return null;
+        }
+    }
+
+    private static void addClaimToProperties(Map<String, Object> properties, String claimUri, String claimValue) {
+
+        Map<String, String> userClaims = properties.get(USER_CLAIMS) != null ?
+                (Map<String, String>) properties.get(USER_CLAIMS) : null;
+        if (userClaims == null) {
+            userClaims = new HashMap<>();
+            properties.put(USER_CLAIMS, userClaims);
+        }
+        userClaims.put(claimUri, claimValue);
+    }
+
+    protected static String resolveFullName(Map<String, Object> properties)
+            throws IdentityFraudDetectorRequestException {
+
+        String fullName = resolveUserClaim(properties, "http://wso2.org/claims/fullname");
+        if (StringUtils.isNotEmpty(fullName)) {
+            return fullName;
+        }
+
+        String firstname = resolveUserClaim(properties, GIVEN_NAME);
+        String lastname = resolveUserClaim(properties, SURNAME);
+        if (StringUtils.isNotEmpty(firstname) && StringUtils.isNotEmpty(lastname)) {
+            return firstname + " " + lastname;
+        } else if (StringUtils.isNotEmpty(firstname)) {
+            return firstname;
+        } else if (StringUtils.isNotEmpty(lastname)) {
+            return lastname;
+        }
+
+        return null;
+    }
+
+    protected static String resolveUserAgent() throws IdentityFraudDetectorRequestException {
+
+        String userAgent = (String) IdentityUtil.threadLocalProperties.get().get(USER_AGENT_HEADER);
+        if (StringUtils.isNotEmpty(userAgent)) {
+            return userAgent;
+        } else {
+            throw new IdentityFraudDetectorRequestException("Cannot resolve user agent. User agent is null.");
+        }
+    }
+
+    protected static String resolveRemoteAddress() throws IdentityFraudDetectorRequestException {
+
+        String ipAddress = (String) IdentityUtil.threadLocalProperties.get().get(REMOTE_ADDRESS);
+        if (StringUtils.isNotEmpty(ipAddress)) {
+            return ipAddress;
+        } else {
+            throw new IdentityFraudDetectorRequestException("Cannot resolve IP address. IP address is null.");
+        }
+    }
+
+    private static Map<String, String> getUserClaimValuesFromDB(Map<String, Object> properties, String[] claims)
+            throws IdentityFraudDetectorRequestException {
+
+        String username = properties.get(USER_NAME) != null ? (String) properties.get(USER_NAME) : null;
+        String tenantDomain = properties.get(TENANT_DOMAIN) != null ? (String) properties.get(TENANT_DOMAIN) : null;
+        String userStoreDomain = resolveUserStoreDomain(properties);
+
+        try {
+            return EventUtil.getUserClaimValues(username, tenantDomain, userStoreDomain, claims);
+        } catch (IdentityFraudDetectorException e) {
+            throw new IdentityFraudDetectorRequestException("Error while retrieving user claim values for user: "
+                    + username, e);
+        }
+    }
+
+    protected static boolean isAllowUserInfoInPayload(Map<String, Object> properties)
+            throws IdentityFraudDetectorRequestException {
+
+        String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
+                (String) properties.get(TENANT_DOMAIN) : null;
+        if (StringUtils.isEmpty(tenantDomain)) {
+            throw new IdentityFraudDetectorRequestException("Cannot check allow user info in payload. " +
+                    "Tenant domain is null.");
+        }
+
+        try {
+            return EventUtil.isAllowUserInfoInPayload(tenantDomain);
+        } catch (FraudDetectionConfigServerException e) {
+            throw new IdentityFraudDetectorRequestException("Error while retrieving fraud detection config for tenant: "
+                    + tenantDomain, e);
+        }
     }
 }
