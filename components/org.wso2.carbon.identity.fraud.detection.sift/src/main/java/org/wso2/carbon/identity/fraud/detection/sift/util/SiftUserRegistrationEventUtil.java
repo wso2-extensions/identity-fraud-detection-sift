@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
@@ -11,22 +28,32 @@ import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDete
 import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
 import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
-import org.wso2.carbon.user.core.UserCoreConstants;
 
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveSessionId;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserClaim;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserId;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
 
+/**
+ * Utility class for handling Sift user registration events.
+ */
 public class SiftUserRegistrationEventUtil {
 
+    /**
+     * Builds the user registration event payload for Sift.
+     *
+     * @param requestDTO Fraud detector request DTO.
+     * @return JSON string of the user registration event payload.
+     * @throws IdentityFraudDetectorRequestException if an error occurs while building the payload.
+     */
     public static String handlePostUserRegistrationEventPayload(FraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectorRequestException {
 
@@ -35,17 +62,17 @@ public class SiftUserRegistrationEventUtil {
 
         try {
             String validatedMobileNumber = validateMobileNumberFormat(
-                    resolveUserClaim(properties, UserCoreConstants.ClaimTypeURIs.MOBILE));
+                    resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.MOBILE));
             CreateAccountFieldSet fieldSet = new CreateAccountFieldSet()
                     .setUserId(resolveUserId(properties))
-                    .setBrowser(new Browser().setUserAgent(resolveUserAgent()))
-                    .setIp(resolveRemoteAddress())
-                    .setSocialSignOnType("$other")
+                    .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
+                    .setIp(resolveRemoteAddress(properties))
                     .setSessionId(resolveSessionId(properties))
-                    .setUserEmail(resolveUserClaim(properties, UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS))
+                    .setUserEmail(resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS))
                     .setPhone(validatedMobileNumber)
                     .setVerificationPhoneNumber(validatedMobileNumber)
-                    .setName(resolveFullName(properties));
+                    .setName(resolveFullName(properties))
+                    .setCustomField("is_user_created_by_admin", !resolveIsSelfRegistrationFlow(properties));
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
@@ -54,6 +81,14 @@ public class SiftUserRegistrationEventUtil {
         }
     }
 
+    /**
+     * Handles the user registration event response from Sift.
+     *
+     * @param responseContent JSON string of the response content from Sift.
+     * @param requestDTO      Sift fraud detector request DTO.
+     * @return Sift fraud detector response DTO.
+     * @throws IdentityFraudDetectorResponseException if an error occurs while handling the response.
+     */
     public static FraudDetectorResponseDTO handlePostUserRegistrationResponse(String responseContent,
                                                                               SiftFraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectorResponseException {
@@ -65,5 +100,17 @@ public class SiftUserRegistrationEventUtil {
                     "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
         return new SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus.SUCCESS, eventName);
+    }
+
+    /**
+     * Resolves whether the user registration flow is a self-registration flow.
+     *
+     * @param properties Map of properties.
+     * @return true if it is a self-registration flow, false otherwise.
+     */
+    private static boolean resolveIsSelfRegistrationFlow(Map<String, Object> properties) {
+
+        return properties.containsKey("isUserSelfRegistrationFlow") &&
+                (Boolean) properties.get("isUserSelfRegistrationFlow");
     }
 }

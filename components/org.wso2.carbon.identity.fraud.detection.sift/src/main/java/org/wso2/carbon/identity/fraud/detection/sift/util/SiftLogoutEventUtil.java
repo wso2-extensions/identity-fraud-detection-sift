@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
@@ -23,8 +40,18 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
 
+/**
+ * Utility class for handling Sift logout events.
+ */
 public class SiftLogoutEventUtil {
 
+    /**
+     * Builds the logout event payload for Sift.
+     *
+     * @param requestDTO Sift fraud detector request DTO.
+     * @return JSON string of the logout event payload.
+     * @throws IdentityFraudDetectorRequestException if an error occurs while building the payload.
+     */
     public static String handleLogoutEventPayload(SiftFraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectorRequestException {
 
@@ -36,8 +63,8 @@ public class SiftLogoutEventUtil {
         try {
             LogoutFieldSet logoutFieldSet = new LogoutFieldSet()
                     .setUserId(resolveUserId(sessionContext))
-                    .setBrowser(new Browser().setUserAgent(SiftEventUtil.resolveUserAgent()))
-                    .setIp(SiftEventUtil.resolveRemoteAddress())
+                    .setBrowser(new Browser().setUserAgent(SiftEventUtil.resolveUserAgent(properties)))
+                    .setIp(SiftEventUtil.resolveRemoteAddress(properties))
                     .setCustomField("is_logout_triggered_from_application", isLogoutTriggeredFromApplication);
             logoutFieldSet.validate();
             return setAPIKey(logoutFieldSet, tenantDomain);
@@ -50,6 +77,14 @@ public class SiftLogoutEventUtil {
         }
     }
 
+    /**
+     * Handles the logout event response from Sift.
+     *
+     * @param responseContent JSON string of the response content from Sift.
+     * @param requestDTO      Sift fraud detector request DTO.
+     * @return Sift fraud detector response DTO.
+     * @throws IdentityFraudDetectorResponseException if an error occurs while handling the response.
+     */
     public static FraudDetectorResponseDTO handleLogoutResponse(String responseContent,
                                                                 SiftFraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectorResponseException {
@@ -63,6 +98,14 @@ public class SiftLogoutEventUtil {
         return new SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus.SUCCESS, eventName);
     }
 
+    /**
+     * Resolves the user ID from the session context.
+     *
+     * @param sessionContext Session context.
+     * @return Resolved user ID.
+     * @throws FrameworkException                       if an error occurs while accessing the session context.
+     * @throws IdentityFraudDetectorRequestException    if the user ID cannot be resolved.
+     */
     private static String resolveUserId(SessionContext sessionContext)
             throws FrameworkException, IdentityFraudDetectorRequestException {
 

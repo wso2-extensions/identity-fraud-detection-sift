@@ -36,7 +36,6 @@ import org.wso2.carbon.identity.application.common.model.Property;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorException;
 import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
@@ -62,6 +61,12 @@ public class Util {
 
     private static final Log LOG = LogFactory.getLog(Util.class);
 
+    /**
+     * Build the Sift request path based on the request DTO.
+     *
+     * @param requestDTO Sift fraud detector request DTO.
+     * @return Sift request path.
+     */
     public static String buildSiftRequestPath(SiftFraudDetectorRequestDTO requestDTO) {
 
         if (requestDTO.isReturnRiskScore()) {
@@ -73,6 +78,14 @@ public class Util {
         }
     }
 
+    /**
+     * Set the API key in the given field set.
+     *
+     * @param fieldSet     Field set to set the API key.
+     * @param tenantDomain Tenant domain.
+     * @return JSON string of the field set with the API key.
+     * @throws IdentityFraudDetectorRequestException If an error occurs while setting the API key.
+     */
     public static String setAPIKey(FieldSet<?> fieldSet, String tenantDomain)
             throws IdentityFraudDetectorRequestException {
 
@@ -180,6 +193,12 @@ public class Util {
 
     }
 
+    /**
+     * Process the default parameters and remove them from the custom parameters.
+     *
+     * @param loginFieldSet      Login field set.
+     * @param passedCustomParams Custom parameters passed by the user.
+     */
     protected static void processDefaultParameters(LoginFieldSet loginFieldSet,
                                                      Map<String, Object> passedCustomParams) {
 
@@ -221,6 +240,12 @@ public class Util {
         }
     }
 
+    /**
+     * Process the custom parameters and add them to the login field set.
+     *
+     * @param loginFieldSet      Login field set.
+     * @param passedCustomParams Custom parameters passed by the user.
+     */
     protected static void processCustomParameters(LoginFieldSet loginFieldSet, Map<String, Object> passedCustomParams) {
 
         if (passedCustomParams != null) {
@@ -250,6 +275,13 @@ public class Util {
         return passedCustomParams;
     }
 
+    /**
+     * Get the Sift API key for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Sift API key.
+     * @throws FrameworkException If an error occurs while retrieving the Sift API key.
+     */
     public static String getSiftApiKey(String tenantDomain) throws FrameworkException {
 
         String apiKey = getSiftConfigs(tenantDomain).get(SIFT_API_KEY_PROP);
@@ -309,6 +341,12 @@ public class Util {
         return SiftDataHolder.getInstance().getIdentityGovernanceService();
     }
 
+    /**
+     * Get the login status enum based on the status string.
+     *
+     * @param status Login status string.
+     * @return Login status enum.
+     */
     protected static Constants.LoginStatus getLoginStatus(String status) {
 
         if (Constants.LoginStatus.LOGIN_SUCCESS.getStatus().equalsIgnoreCase(status)) {
@@ -320,6 +358,14 @@ public class Util {
         }
     }
 
+    /**
+     * Resolve the payload data based on the key.
+     *
+     * @param key     Key to resolve.
+     * @param context Authentication context.
+     * @return Resolved payload data.
+     * @throws FrameworkException If an error occurs while resolving the payload data.
+     */
     protected static String resolvePayloadData(String key, JsAuthenticationContext context) throws FrameworkException {
 
         switch (key) {
@@ -336,6 +382,14 @@ public class Util {
         }
     }
 
+    /**
+     * Resolve the payload data based on the key.
+     *
+     * @param key     Key to resolve.
+     * @param context Authentication context.
+     * @return Resolved payload data.
+     * @throws FrameworkException If an error occurs while resolving the payload data.
+     */
     protected static String resolvePayloadData(String key, AuthenticationContext context) throws FrameworkException {
 
         switch (key) {
@@ -345,6 +399,8 @@ public class Util {
                 return getUserAgent(context);
             case Constants.IP_KEY:
                 return getIpAddress(context);
+            case Constants.SESSION_ID_KEY:
+                return generateSessionHash(context);
             default:
                 return null;
         }
@@ -361,9 +417,10 @@ public class Util {
     private static String getHashedUserId(JsAuthenticationContext ctx) throws FrameworkException {
 
         AuthenticationContext authenticationContext = ctx.getWrapped();
-        String userIdFromStep = getHashedUserId(authenticationContext);
-        if (userIdFromStep != null) {
-            return userIdFromStep;
+        try {
+            return getHashedUserId(authenticationContext);
+        } catch (FrameworkException e) {
+            LOG.debug("Unable to get the user ID from the step configuration.", e);
         }
 
         String memberKey = JS_CURRENT_KNOWN_SUBJECT;
@@ -392,7 +449,7 @@ public class Util {
      * @param authenticationContext Authentication context.
      * @return Hashed user ID or null if not available.
      */
-    private static String getHashedUserId(AuthenticationContext authenticationContext) {
+    private static String getHashedUserId(AuthenticationContext authenticationContext) throws FrameworkException {
 
         int currentStep = authenticationContext.getCurrentStep();
         if (currentStep == 0) {
@@ -407,15 +464,27 @@ public class Util {
                 return DigestUtils.sha256Hex(username);
             }
         }
-        return null;
+
+        throw new FrameworkException("Unable to resolve user ID from the step configuration.");
     }
 
-
+    /**
+     * Get the user agent from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return User agent.
+     */
     private static String getUserAgent(JsAuthenticationContext context) {
 
         return getUserAgent(context.getWrapped());
     }
 
+    /**
+     * Get the user agent from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return User agent.
+     */
     private static String getUserAgent(AuthenticationContext context) {
 
         Object httpServletRequest =
@@ -427,11 +496,23 @@ public class Util {
         return null;
     }
 
+    /**
+     * Get the IP address from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return IP address.
+     */
     private static String getIpAddress(JsAuthenticationContext context) {
 
         return getIpAddress(context.getWrapped());
     }
 
+    /**
+     * Get the IP address from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return IP address.
+     */
     private static String getIpAddress(AuthenticationContext context) {
 
         Object httpServletRequest =
@@ -466,5 +547,20 @@ public class Util {
             throw new FrameworkException("Context identifier is null.");
         }
         return DigestUtils.sha256Hex(context.getWrapped().getContextIdentifier());
+    }
+
+    /**
+     * Generate a SHA-256 hash of the session identifier.
+     *
+     * @param context Authentication context.
+     * @return SHA-256 hash of the session identifier.
+     * @throws FrameworkException If an error occurs while generating the hash.
+     */
+    private static String generateSessionHash(AuthenticationContext context) throws FrameworkException {
+
+        if (context.getContextIdentifier() == null) {
+            throw new FrameworkException("Context identifier is null.");
+        }
+        return DigestUtils.sha256Hex(context.getContextIdentifier());
     }
 }

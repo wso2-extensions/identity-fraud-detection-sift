@@ -1,25 +1,34 @@
+/*
+ * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.wso2.carbon.identity.fraud.detection.sift;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
-import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLoginEventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLogoutEventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftUpdatePasswordEventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftUserRegistrationEventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftVerificationEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLogUtil;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
 import org.wso2.carbon.identity.fraud.detectors.core.AbstractIdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
@@ -28,8 +37,9 @@ import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDete
 import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
 
-import java.io.IOException;
-
+/**
+ * Implementation of Sift Fraud Detector.
+ */
 public class SiftFraudDetector extends AbstractIdentityFraudDetector implements IdentityFraudDetector {
 
     @Override
@@ -72,26 +82,32 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
     }
 
     @Override
-    public FraudDetectorResponseDTO handleResponse(CloseableHttpResponse closeableHttpResponse,
+    public FraudDetectorResponseDTO handleResponse(int responseStatusCode, String responseContent,
                                                    FraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectorException {
 
-        if (closeableHttpResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+        if (responseStatusCode != HttpStatus.SC_OK) {
             throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. " +
-                    "HTTP error code: " + closeableHttpResponse.getStatusLine().getStatusCode());
+                    "HTTP error code: " + responseStatusCode);
         }
 
-        return SiftEventUtil.handleResponse(closeableHttpResponse, requestDTO);
+        return SiftEventUtil.handleResponse(responseContent, requestDTO);
     }
 
     @Override
     public String getMaskedRequestPayload(String payload) throws IdentityFraudDetectorException {
 
-        return Util.getMaskedSiftPayload(new JSONObject(payload));
+        return SiftLogUtil.getMaskedSiftPayload(new JSONObject(payload));
     }
 
+    /**
+     * Converts a generic FraudDetectorRequestDTO to a SiftFraudDetectorRequestDTO.
+     *
+     * @param requestDTO Generic fraud detector request DTO.
+     * @return Sift fraud detector request DTO.
+     */
     private SiftFraudDetectorRequestDTO convertToSiftRequestDTO(FraudDetectorRequestDTO requestDTO) {
 
-        return new SiftFraudDetectorRequestDTO(requestDTO.getEventName(), requestDTO.getProperties());
+        return new SiftFraudDetectorRequestDTO(requestDTO);
     }
 }
