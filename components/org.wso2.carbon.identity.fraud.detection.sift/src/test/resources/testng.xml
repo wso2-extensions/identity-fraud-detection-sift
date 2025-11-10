@@ -26,9 +26,9 @@
 <!--            <class name="org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.GetSiftWorkflowStatusFunctionImplTest"/>-->
 <!--            <class name="org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunctionImplTest"/>-->
 <!--            <class name="org.wso2.carbon.identity.fraud.detection.sift.util.UtilTest"/>-->
-<!--            <class name="org.wso2.carbon.identity.fraud.detection.sift.ConnectionConfigTest"/>-->
-<!--            <class name="org.wso2.carbon.identity.fraud.detection.sift.HttpClientManagerTest"/>-->
-<!--            <class name="org.wso2.carbon.identity.fraud.detection.sift.SiftConnectorConfigTest"/>-->
+            <class name="org.wso2.carbon.identity.fraud.detection.sift.ConnectionConfigTest"/>
+            <class name="org.wso2.carbon.identity.fraud.detection.sift.HttpClientManagerTest"/>
+            <class name="org.wso2.carbon.identity.fraud.detection.sift.SiftConnectorConfigTest"/>
         </classes>
     </test>
 </suite>

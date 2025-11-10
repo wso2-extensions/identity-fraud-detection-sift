@@ -21,24 +21,28 @@ import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.Browser;
 import com.siftscience.model.CreateAccountFieldSet;
 import com.siftscience.model.EventResponseBody;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
 
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_CREATED_BY_ADMIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_SELF_REGISTRATION_FLOW;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveSessionId;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserId;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
 
@@ -72,7 +76,8 @@ public class SiftUserRegistrationEventUtil {
                     .setPhone(validatedMobileNumber)
                     .setVerificationPhoneNumber(validatedMobileNumber)
                     .setName(resolveFullName(properties))
-                    .setCustomField("is_user_created_by_admin", !resolveIsSelfRegistrationFlow(properties));
+                    .setCustomField(USER_CREATED_BY_ADMIN, !resolveIsSelfRegistrationFlow(properties))
+                    .setCustomField(USER_UUID, resolveUserUUID(properties));
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
@@ -96,8 +101,8 @@ public class SiftUserRegistrationEventUtil {
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
         FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. " +
+                    "Returned Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
         return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
@@ -110,7 +115,7 @@ public class SiftUserRegistrationEventUtil {
      */
     private static boolean resolveIsSelfRegistrationFlow(Map<String, Object> properties) {
 
-        return properties.containsKey("isUserSelfRegistrationFlow") &&
-                (Boolean) properties.get("isUserSelfRegistrationFlow");
+        return properties.containsKey(USER_SELF_REGISTRATION_FLOW)
+                && (Boolean) properties.get(USER_SELF_REGISTRATION_FLOW);
     }
 }

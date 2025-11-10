@@ -33,13 +33,16 @@ import org.wso2.carbon.identity.application.authentication.framework.context.Aut
 import org.wso2.carbon.identity.application.authentication.framework.context.TransientObjectWrapper;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.common.model.Property;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.bean.ConnectorConfig;
+import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
+import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
+import org.wso2.carbon.identity.organization.management.service.util.OrganizationManagementUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -291,13 +294,22 @@ public class Util {
         return apiKey;
     }
 
+    /**
+     * Get the Sift configurations for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Sift configurations.
+     * @throws FrameworkException If an error occurs while retrieving the Sift configurations.
+     */
     private static Map<String, String> getSiftConfigs(String tenantDomain) throws FrameworkException {
 
         try {
+            String rootTenantDomain = OrganizationManagementUtil.isOrganization(tenantDomain) ?
+                    getPrimaryTenantDomain(tenantDomain) : tenantDomain;
             ConnectorConfig connectorConfig =
-                    getIdentityGovernanceService().getConnectorWithConfigs(tenantDomain, CONNECTOR_NAME);
+                    getIdentityGovernanceService().getConnectorWithConfigs(rootTenantDomain, CONNECTOR_NAME);
             if (connectorConfig == null) {
-                throw new FrameworkException("Sift configurations not found for tenant: " + tenantDomain);
+                throw new FrameworkException("Sift configurations not found for tenant: " + rootTenantDomain);
             }
             Map<String, String> siftConfigs = new HashMap<>();
             // Go through the connector config and get the sift configurations.
@@ -306,10 +318,25 @@ public class Util {
             }
 
             return siftConfigs;
-        } catch (IdentityGovernanceException e) {
+        } catch (IdentityGovernanceException | OrganizationManagementException e) {
             throw new FrameworkException("Error while retrieving sift configurations: " + e.getMessage());
         }
 
+    }
+
+    /**
+     * Retrieves the primary tenant domain for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Primary tenant domain.
+     * @throws OrganizationManagementException If an error occurs while retrieving the primary tenant domain.
+     */
+    private static String getPrimaryTenantDomain(String tenantDomain) throws OrganizationManagementException {
+
+        OrganizationManager organizationManager = SiftDataHolder.getInstance().getOrganizationManager();
+        String orgId = organizationManager.resolveOrganizationId(tenantDomain);
+        String primaryOrgId = organizationManager.getPrimaryOrganizationId(orgId);
+        return organizationManager.resolveTenantDomain(primaryOrgId);
     }
 
     /**
@@ -541,6 +568,13 @@ public class Util {
         return isLoggingEnabled;
     }
 
+    /**
+     * Generate a SHA-256 hash of the session identifier.
+     *
+     * @param context JsAuthentication context.
+     * @return SHA-256 hash of the session identifier.
+     * @throws FrameworkException If an error occurs while generating the hash.
+     */
     private static String generateSessionHash(JsAuthenticationContext context) throws FrameworkException {
 
         if (context.getWrapped().getContextIdentifier() == null) {

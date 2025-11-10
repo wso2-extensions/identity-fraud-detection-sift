@@ -25,12 +25,12 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext;
 import org.wso2.carbon.identity.application.authentication.framework.context.SessionContext;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 
 import java.util.Map;
 
@@ -38,6 +38,9 @@ import static org.wso2.carbon.identity.application.authentication.framework.util
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.CONTEXT;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.SESSION_CONTEXT;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LOGOUT_TRIGGERED_FROM_APPLICATION;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
 
 /**
@@ -65,7 +68,8 @@ public class SiftLogoutEventUtil {
                     .setUserId(resolveUserId(sessionContext))
                     .setBrowser(new Browser().setUserAgent(SiftEventUtil.resolveUserAgent(properties)))
                     .setIp(SiftEventUtil.resolveRemoteAddress(properties))
-                    .setCustomField("is_logout_triggered_from_application", isLogoutTriggeredFromApplication);
+                    .setCustomField(LOGOUT_TRIGGERED_FROM_APPLICATION, isLogoutTriggeredFromApplication)
+                    .setCustomField(USER_UUID, resolveUserUUID(properties));
             logoutFieldSet.validate();
             return setAPIKey(logoutFieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
@@ -92,8 +96,8 @@ public class SiftLogoutEventUtil {
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
         FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned "
+                    + "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
         return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }

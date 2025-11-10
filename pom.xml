@@ -41,19 +41,6 @@
         <tag>HEAD</tag>
     </scm>
 
-    <repositories>
-        <repository>
-            <id>wso2-nexus-support</id>
-            <name>WSO2 internal Repository</name>
-            <url>https://support-maven.wso2.org/nexus/content/repositories/updates-2.0/</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>daily</updatePolicy>
-                <checksumPolicy>ignore</checksumPolicy>
-            </releases>
-        </repository>
-    </repositories>
-
     <modules>
         <module>components/org.wso2.carbon.identity.fraud.detection.sift</module>
     </modules>
@@ -91,6 +78,11 @@
                 <artifactId>org.wso2.carbon.identity.fraud.detection.core</artifactId>
                 <version>${carbon.identity.framework.version}</version>
                 <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.wso2.carbon.identity.organization.management.core</groupId>
+                <artifactId>org.wso2.carbon.identity.organization.management.service</artifactId>
+                <version>${org.wso2.carbon.identity.organization.management.core.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.wso2.carbon.identity.governance</groupId>
@@ -319,6 +311,10 @@
         <carbon.kernel.package.import.version.range>[4.5.0, 5.0.0)</carbon.kernel.package.import.version.range>
         <carbon.user.api.imp.pkg.version.range>[1.0.1, 2.0.0)</carbon.user.api.imp.pkg.version.range>
         <identity.governance.import.version.range>[1.9.6,3.0)</identity.governance.import.version.range>
+        <org.wso2.carbon.identity.organization.management.core.version>1.0.90
+        </org.wso2.carbon.identity.organization.management.core.version>
+        <org.wso2.carbon.identity.organization.management.core.version.range>[1.0.0, 2.0.0)
+        </org.wso2.carbon.identity.organization.management.core.version.range>
         <commons-lang.wso2.version>2.6.0.wso2v1</commons-lang.wso2.version>
         <pax.logging.api.version>1.10.1</pax.logging.api.version>
         <wso2.pax.logging.api.version>2.1.0-wso2v4</wso2.pax.logging.api.version>

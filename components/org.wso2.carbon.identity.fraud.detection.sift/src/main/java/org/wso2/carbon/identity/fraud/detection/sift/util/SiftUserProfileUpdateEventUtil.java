@@ -21,25 +21,30 @@ import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdateAccountFieldSet;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
 
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.SCENARIO;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.Scenario.ScenarioTypes.POST_USER_PROFILE_UPDATE_BY_ADMIN;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.Scenario.ScenarioTypes.POST_USER_PROFILE_UPDATE_BY_USER;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_PROFILE_UPDATED_BY_ADMIN;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveSessionId;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserId;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
 
@@ -73,7 +78,8 @@ public class SiftUserProfileUpdateEventUtil {
                     .setName(resolveFullName(properties))
                     .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
-                    .setCustomField("is_user_profile_updated_by_admin", isProfileUpdateByAdmin(properties));
+                    .setCustomField(USER_PROFILE_UPDATED_BY_ADMIN, isProfileUpdateByAdmin(properties))
+                    .setCustomField(USER_UUID, resolveUserUUID(properties));
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
@@ -97,8 +103,8 @@ public class SiftUserProfileUpdateEventUtil {
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
         FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned"
+                    + "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
         return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
@@ -114,9 +120,9 @@ public class SiftUserProfileUpdateEventUtil {
             throws IdentityFraudDetectionRequestException {
 
         String scenario = (String) properties.get(SCENARIO);
-        if ("POST_USER_PROFILE_UPDATE_BY_ADMIN".equals(scenario)) {
+        if (POST_USER_PROFILE_UPDATE_BY_ADMIN.equals(scenario)) {
             return true;
-        } else if ("POST_USER_PROFILE_UPDATE_BY_USER".equals(scenario)) {
+        } else if (POST_USER_PROFILE_UPDATE_BY_USER.equals(scenario)) {
             return false;
         }
 

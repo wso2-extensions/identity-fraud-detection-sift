@@ -21,12 +21,12 @@ import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdatePasswordFieldSet;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
@@ -39,25 +39,38 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.Scenario.ScenarioTypes.POST_CREDENTIAL_UPDATE_BY_ADMIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.Scenario.ScenarioTypes.POST_CREDENTIAL_UPDATE_BY_USER;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.POST_UPDATE_PASSWORD;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUpdateReason.FORCED_RESET;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUpdateReason.FORGOT_PASSWORD;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUpdateReason.USER_UPDATE;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.ProgressStatus.PENDING;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.ProgressStatus.SUCCESS;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserId;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
-import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.POST_UPDATE_PASSWORD;
-import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
 import static org.wso2.carbon.identity.recovery.RecoveryScenarios.ADMIN_FORCED_PASSWORD_RESET_VIA_EMAIL_LINK;
 import static org.wso2.carbon.identity.recovery.RecoveryScenarios.ADMIN_FORCED_PASSWORD_RESET_VIA_OTP;
 import static org.wso2.carbon.identity.recovery.RecoveryScenarios.ASK_PASSWORD;
 import static org.wso2.carbon.identity.recovery.RecoveryScenarios.NOTIFICATION_BASED_PW_RECOVERY;
-import static org.wso2.carbon.identity.recovery.RecoveryScenarios.NOTIFICATION_BASED_PW_RECOVERY_OFFLINE_INVITE;
 
 /**
  * Utility class for handling Sift update password events.
  */
 public class SiftUpdatePasswordEventUtil {
 
+    /**
+     * Builds the update password event payload for Sift.
+     *
+     * @param requestDTO Sift fraud detector request DTO.
+     * @return JSON string of the update password event payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while building the payload.
+     */
     public static String handleUpdatePasswordEventPayload(SiftFraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectionRequestException {
 
@@ -73,7 +86,8 @@ public class SiftUpdatePasswordEventUtil {
                     .setIp(resolveRemoteAddress(properties))
                     .setUserEmail(resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS))
                     .setVerificationPhoneNumber(validateMobileNumberFormat(
-                            resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.MOBILE)));
+                            resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.MOBILE)))
+                    .setCustomField(USER_UUID, resolveUserUUID(properties));
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
@@ -97,8 +111,8 @@ public class SiftUpdatePasswordEventUtil {
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
         FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned"
+                    + " Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
         return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
@@ -119,18 +133,14 @@ public class SiftUpdatePasswordEventUtil {
             String recoveryScenario = (String) requestDTO.getProperties().get(RECOVERY_SCENARIO);
             if (ASK_PASSWORD.name().equals(recoveryScenario)) {
                 // Ask password flow where admin created the user and user set the password successfully.
-                return "$forced_reset";
-            } else if (NOTIFICATION_BASED_PW_RECOVERY_OFFLINE_INVITE.name().equals(recoveryScenario)) {
-                // Offline invite link scenario where admin created the user and user set the password successfully.
-                return "$forced_reset";
+                return FORCED_RESET.getValue();
             } else if (ADMIN_FORCED_PASSWORD_RESET_VIA_EMAIL_LINK.name().equals(recoveryScenario)
                     || ADMIN_FORCED_PASSWORD_RESET_VIA_OTP.name().equals(recoveryScenario)) {
-                // TODO: Check for OTP based flow too.
                 // Admin forced password reset via email link scenario and user set the password successfully.
-                return "$forced_reset";
+                return FORCED_RESET.getValue();
             } else if (NOTIFICATION_BASED_PW_RECOVERY.name().equals(recoveryScenario)) {
                 // This is a forgot password scenario where user initiates the password reset flow.
-                return "$forgot_password";
+                return FORGOT_PASSWORD.getValue();
             }
 
             // This section covers the post password update scenarios came through POST_UPDATE_CREDENTIAL_BY_SCIM
@@ -138,10 +148,10 @@ public class SiftUpdatePasswordEventUtil {
             String scenario = (String) requestDTO.getProperties().get(SCENARIO);
             if (POST_CREDENTIAL_UPDATE_BY_ADMIN.equals(scenario)) {
                 // Admin forcefully updates the password of the user.
-                return "$forced_reset";
+                return FORCED_RESET.getValue();
             } else if (POST_CREDENTIAL_UPDATE_BY_USER.equals(scenario)) {
                 // User updates their own password.
-                return "$user_update";
+                return USER_UPDATE.getValue();
             }
         }
 
@@ -149,9 +159,9 @@ public class SiftUpdatePasswordEventUtil {
         String internalEventName = (String) requestDTO.getProperties().get(INTERNAL_EVENT_NAME);
         if (POST_ADD_USER_WITH_ASK_PASSWORD.equals(internalEventName)
                 || POST_FORCE_PASSWORD_RESET_BY_ADMIN.equals(internalEventName)) {
-            return "$forced_reset";
+            return FORCED_RESET.getValue();
         } else if (POST_SEND_RECOVERY_NOTIFICATION.equals(internalEventName)) {
-            return "$forgot_password";
+            return FORGOT_PASSWORD.getValue();
         }
 
         throw new IdentityFraudDetectionRequestException("Cannot resolve reason for update credential event.");
@@ -173,27 +183,23 @@ public class SiftUpdatePasswordEventUtil {
             String recoveryScenario = (String) requestDTO.getProperties().get(RECOVERY_SCENARIO);
             if (ASK_PASSWORD.name().equals(recoveryScenario)) {
                 // Ask password flow where admin created the user and user set the password successfully.
-                return "$success";
-            } else if (NOTIFICATION_BASED_PW_RECOVERY_OFFLINE_INVITE.name().equals(recoveryScenario)) {
-                // Offline invite link scenario where admin created the user and user set the password successfully.
-                return "$success";
+                return SUCCESS.getValue();
             } else if (ADMIN_FORCED_PASSWORD_RESET_VIA_EMAIL_LINK.name().equals(recoveryScenario)
                     || ADMIN_FORCED_PASSWORD_RESET_VIA_OTP.name().equals(recoveryScenario)) {
-                // TODO: Check for OTP based flow too.
                 // Admin forced password reset via email link scenario and user set the password successfully.
-                return "$success";
+                return SUCCESS.getValue();
             } else if (NOTIFICATION_BASED_PW_RECOVERY.name().equals(recoveryScenario)) {
                 // This is a forgot password scenario where user initiates the password reset flow.
-                return "$success";
+                return SUCCESS.getValue();
             }
 
             String scenario = (String) requestDTO.getProperties().get(SCENARIO);
             if (POST_CREDENTIAL_UPDATE_BY_ADMIN.equals(scenario)) {
                 // Admin forcefully updates the password of the user.
-                return "$success";
+                return SUCCESS.getValue();
             } else if (POST_CREDENTIAL_UPDATE_BY_USER.equals(scenario)) {
                 // User updates their own password.
-                return "$success";
+                return SUCCESS.getValue();
             }
         }
 
@@ -202,7 +208,7 @@ public class SiftUpdatePasswordEventUtil {
         if (POST_ADD_USER_WITH_ASK_PASSWORD.equals(internalEventName)
                 || POST_FORCE_PASSWORD_RESET_BY_ADMIN.equals(internalEventName)
                 || POST_SEND_RECOVERY_NOTIFICATION.equals(internalEventName)) {
-            return "$pending";
+            return PENDING.getValue();
         }
 
         throw new IdentityFraudDetectionRequestException("Cannot resolve status for update credential event.");

@@ -26,16 +26,18 @@ import org.apache.http.entity.StringEntity;
 import org.json.JSONObject;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLogUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
 import org.wso2.carbon.identity.fraud.detection.core.AbstractIdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLogUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
+
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_FRAUD_DETECTOR_CONNECTOR_NAME;
 
 /**
  * Implementation of Sift Fraud Detector.
@@ -45,7 +47,7 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
     @Override
     public String getName() {
 
-        return "SiftFraudDetector";
+        return SIFT_FRAUD_DETECTOR_CONNECTOR_NAME;
     }
 
     @Override

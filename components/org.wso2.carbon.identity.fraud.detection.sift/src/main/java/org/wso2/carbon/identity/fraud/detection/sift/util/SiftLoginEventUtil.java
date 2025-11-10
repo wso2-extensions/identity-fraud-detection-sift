@@ -28,18 +28,20 @@ import com.siftscience.model.WorkflowStatusHistoryConfig;
 import com.siftscience.model.WorkflowStatusHistoryItem;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.identity.application.authentication.framework.config.model.graph.js.JsAuthenticationContext;
 import org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
 import org.wso2.carbon.identity.application.common.model.User;
-import org.wso2.carbon.identity.fraud.detection.sift.Constants;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.Constants;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
@@ -55,20 +57,25 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_NAME;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_DOMAIN;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.AUTHENTICATION_CONTEXT;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.CUSTOM_PARAMS;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LOGIN_STATUS;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LoginFailureReason;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LoginStatus.LOGIN_FAILED;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LoginStatus.LOGIN_SUCCESS;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_ACCOUNT_TAKEOVER;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_DECISION;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_SESSION;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USERNAME_USER_INPUT;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.getLoginStatus;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.processCustomParameters;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.processDefaultParameters;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.resolvePayloadData;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
-import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
 import static org.wso2.carbon.identity.mgt.store.UserIdentityDataStore.ACCOUNT_DISABLED;
 import static org.wso2.carbon.identity.mgt.store.UserIdentityDataStore.ACCOUNT_LOCK;
 import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS;
@@ -79,6 +86,8 @@ import static org.wso2.carbon.user.core.constants.UserCoreErrorConstants.ErrorMe
  * Utility class for handling Sift login events.
  */
 public class SiftLoginEventUtil {
+
+    private static final Log LOG = LogFactory.getLog(SiftLoginEventUtil.class);
 
     /**
      * Handles the login event payload based on the source of the event.
@@ -163,7 +172,8 @@ public class SiftLoginEventUtil {
                     .setFailureReason(resolveFailureReason(properties, context))
                     .setUsername(resolveUsername(properties))
                     .setUserEmail(resolveUserClaim(properties, EMAIL_ADDRESS))
-                    .setVerificationPhoneNumber(validateMobileNumberFormat(resolveUserClaim(properties, MOBILE)));
+                    .setVerificationPhoneNumber(validateMobileNumberFormat(resolveUserClaim(properties, MOBILE)))
+                    .setCustomField(USER_UUID, resolveUserUUID(properties));
             loginFieldSet.validate();
             return setAPIKey(loginFieldSet, context.getTenantDomain());
         } catch (InvalidFieldException e) {
@@ -192,8 +202,8 @@ public class SiftLoginEventUtil {
         String workflowDecision = null;
 
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
-                    "Sift status code: " + responseBody.getStatus());
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned"
+                    + "Sift status code: " + responseBody.getStatus());
         }
 
         if (requestDTO.isReturnRiskScore()) {
@@ -234,10 +244,10 @@ public class SiftLoginEventUtil {
 
         String internalEventName = (String) properties.get(INTERNAL_EVENT_NAME);
         if (AUTHENTICATION_SUCCESS.name().equals(internalEventName)) {
-            return "$success";
+            return LOGIN_SUCCESS.getSiftValue();
         } else if (AUTHENTICATION_FAILURE.name().equals(internalEventName)
                 || AUTHENTICATION_STEP_FAILURE.name().equals(internalEventName)) {
-            return "$failure";
+            return LOGIN_FAILED.getSiftValue();
         }
 
         throw new IdentityFraudDetectionRequestException("Cannot resolve login status for the login event.");
@@ -331,23 +341,26 @@ public class SiftLoginEventUtil {
             String accountDisableClaimValue = resolveUserClaim(properties, ACCOUNT_DISABLED, true);
             if (UserCoreConstants.ErrorCode.INVALID_CREDENTIAL.equals(currentErrorCode)) {
                 // In this situation, either the password is incorrect or the account don't exist.
-                siftFailureReason = "$wrong_password";
+                siftFailureReason = LoginFailureReason.WRONG_CREDENTIALS.getValue();
             } else {
                 if (Boolean.parseBoolean(accountLockClaimValue)) {
-                    siftFailureReason = "$account_suspended";
+                    siftFailureReason = LoginFailureReason.ACCOUNT_SUSPENDED.getValue();
                 } else if (Boolean.parseBoolean(accountDisableClaimValue)) {
-                    siftFailureReason = "$account_disabled";
+                    siftFailureReason = LoginFailureReason.ACCOUNT_DISABLED.getValue();
                 }
             }
         } catch (IdentityFraudDetectionRequestException e) {
             // Catch the relevant exception to user not existing and return user not available as the reason.
             String errorMessage = e.getMessage();
             if (errorMessage != null && errorMessage.contains(ERROR_CODE_NON_EXISTING_USER.getCode())) {
-                return "$account_unknown";
+                return LoginFailureReason.ACCOUNT_UNKNOWN.getValue();
             }
         }
 
-        // TODO: Add a debug log here.
+        if (LOG.isDebugEnabled() && StringUtils.isEmpty(siftFailureReason)) {
+            LOG.debug("Could not resolve a specific failure reason for the failed login attempt.");
+        }
+
         return siftFailureReason;
     }
 
@@ -364,8 +377,8 @@ public class SiftLoginEventUtil {
             return null;
         }
 
-        return authenticationContext.getProperties().containsKey("usernameUserInput") ?
-                (String) authenticationContext.getProperties().get("usernameUserInput") : null;
+        return authenticationContext.getProperties().containsKey(USERNAME_USER_INPUT) ?
+                (String) authenticationContext.getProperties().get(USERNAME_USER_INPUT) : null;
     }
 
     /**

@@ -25,6 +25,7 @@ import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponse
  */
 public class SiftFraudDetectorResponseDTO extends FraudDetectorResponseDTO {
 
+    private static final long serialVersionUID = -1492397936247558933L;
     private double riskScore;
     private String workflowDecision;
 

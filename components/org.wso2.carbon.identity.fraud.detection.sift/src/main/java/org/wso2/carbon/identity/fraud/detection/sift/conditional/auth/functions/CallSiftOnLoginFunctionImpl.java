@@ -23,13 +23,13 @@ import org.apache.commons.logging.LogFactory;
 import org.graalvm.polyglot.HostAccess;
 import org.wso2.carbon.identity.application.authentication.framework.config.model.graph.js.JsAuthenticationContext;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
-import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
-import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 
 import java.util.HashMap;
 import java.util.Map;

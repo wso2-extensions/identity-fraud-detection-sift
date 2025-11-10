@@ -21,16 +21,19 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.carbon.identity.application.authentication.framework.exception.UserSessionException;
+import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.model.User;
+import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
-import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.core.exception.FraudDetectionConfigServerException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.util.EventUtil;
+import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.UserStoreManager;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
@@ -41,6 +44,7 @@ import java.util.Map;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_CLAIMS;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_ID;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_NAME;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_DOMAIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_MANAGER;
@@ -170,7 +174,8 @@ public class SiftEventUtil {
      * @return Resolved user id.
      * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the user id.
      */
-    protected static String resolveUserId(Map<String, Object> properties) throws IdentityFraudDetectionRequestException {
+    protected static String resolveUserId(Map<String, Object> properties)
+            throws IdentityFraudDetectionRequestException {
 
         String username;
         String tenantDomain;
@@ -418,6 +423,49 @@ public class SiftEventUtil {
     }
 
     /**
+     * Resolves the user UUID from the properties map and user store if not present.
+     *
+     * @param properties Map of properties related to the event.
+     * @return Resolved user UUID.
+     */
+    public static String resolveUserUUID(Map<String, Object> properties) {
+
+        String userUUID = properties.get(USER_ID) != null ? (String) properties.get(USER_ID) : null;
+        if (StringUtils.isNotEmpty(userUUID)) {
+            return userUUID;
+        }
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("User UUID is not available in the event properties. Attempting to resolve from user store.");
+        }
+
+        try {
+
+            String username = properties.get(USER_NAME) != null ? (String) properties.get(USER_NAME) : null;
+            String tenantDomain = properties.get(TENANT_DOMAIN) != null ? (String) properties.get(TENANT_DOMAIN) : null;
+            String userStoreDomain = resolveUserStoreDomain(properties);
+
+            if (StringUtils.isEmpty(username) || StringUtils.isEmpty(tenantDomain) ||
+                    StringUtils.isEmpty(userStoreDomain)) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Cannot resolve user UUID. Username, tenant domain or user store domain is null.");
+                }
+                return null;
+            }
+
+            int tenantId = IdentityTenantUtil.getTenantId(tenantDomain);
+            return FrameworkUtils.resolveUserIdFromUsername(tenantId, userStoreDomain,
+                    UserCoreUtil.addDomainToName(username, userStoreDomain));
+
+        } catch (UserSessionException | IdentityFraudDetectionRequestException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Error while resolving user UUID from user store. Hence returning null as userUUID", e);
+            }
+            return null;
+        }
+    }
+
+    /**
      * Checks if user info is allowed in the payload based on tenant configuration.
      *
      * @param properties Map of properties related to the event.
@@ -437,8 +485,8 @@ public class SiftEventUtil {
         try {
             return EventUtil.isAllowUserInfoInPayload(tenantDomain);
         } catch (FraudDetectionConfigServerException e) {
-            throw new IdentityFraudDetectionRequestException("Error while retrieving fraud detection config for tenant: "
-                    + tenantDomain, e);
+            throw new IdentityFraudDetectionRequestException("Error while retrieving fraud detection config " +
+                    "for tenant: " + tenantDomain, e);
         }
     }
 
@@ -462,8 +510,8 @@ public class SiftEventUtil {
         try {
             return EventUtil.isAllowDeviceMetadataInPayload(tenantDomain);
         } catch (FraudDetectionConfigServerException e) {
-            throw new IdentityFraudDetectionRequestException("Error while retrieving fraud detection config for tenant: "
-                    + tenantDomain, e);
+            throw new IdentityFraudDetectionRequestException("Error while retrieving fraud detection config " +
+                    "for tenant: " + tenantDomain, e);
         }
     }
 }
