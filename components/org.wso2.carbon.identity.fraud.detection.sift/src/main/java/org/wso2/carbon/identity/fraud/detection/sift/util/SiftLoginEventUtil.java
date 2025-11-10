@@ -36,10 +36,10 @@ import org.wso2.carbon.identity.application.common.model.User;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
@@ -68,7 +68,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.processCus
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.processDefaultParameters;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.resolvePayloadData;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.INTERNAL_EVENT_NAME;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
 import static org.wso2.carbon.identity.mgt.store.UserIdentityDataStore.ACCOUNT_DISABLED;
 import static org.wso2.carbon.identity.mgt.store.UserIdentityDataStore.ACCOUNT_LOCK;
 import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS;
@@ -85,10 +85,10 @@ public class SiftLoginEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return JSON string representing the login event payload.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while handling the payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while handling the payload.
      */
     public static String handleLoginEventPayload(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         if (requestDTO.getProperties().containsKey(INTERNAL_EVENT_NAME)) {
             return handleLoginEventFromInternalEvent(requestDTO);
@@ -102,16 +102,16 @@ public class SiftLoginEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return JSON string representing the login event payload.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while handling the payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while handling the payload.
      */
     private static String handleLoginEventFromScript(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         Map<String, Object> properties = requestDTO.getProperties();
         JsAuthenticationContext context = properties.get(AUTHENTICATION_CONTEXT) != null ?
                 (JsAuthenticationContext) properties.get(AUTHENTICATION_CONTEXT) : null;
         if (context == null) {
-            throw new IdentityFraudDetectorRequestException("Authentication context is null in the request.");
+            throw new IdentityFraudDetectionRequestException("Authentication context is null in the request.");
         }
 
         try {
@@ -133,10 +133,10 @@ public class SiftLoginEventUtil {
             loginFieldSet.validate();
             return setAPIKey(loginFieldSet, context.getWrapped().getTenantDomain());
         } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building login event payload: "
+            throw new IdentityFraudDetectionRequestException("Error while building login event payload: "
                     + e.getMessage(), e);
         } catch (FrameworkException e) {
-            throw new IdentityFraudDetectorRequestException("Error while resolving payload data: "
+            throw new IdentityFraudDetectionRequestException("Error while resolving payload data: "
                     + e.getMessage(), e);
         }
     }
@@ -146,10 +146,10 @@ public class SiftLoginEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return JSON string representing the login event payload.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while handling the payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while handling the payload.
      */
     private static String handleLoginEventFromInternalEvent(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         Map<String, Object> properties = requestDTO.getProperties();
         AuthenticationContext context = (AuthenticationContext) properties.get(CONTEXT);
@@ -167,10 +167,10 @@ public class SiftLoginEventUtil {
             loginFieldSet.validate();
             return setAPIKey(loginFieldSet, context.getTenantDomain());
         } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building login event payload: "
+            throw new IdentityFraudDetectionRequestException("Error while building login event payload: "
                     + e.getMessage(), e);
         } catch (FrameworkException e) {
-            throw new IdentityFraudDetectorRequestException("Error while resolving payload data: "
+            throw new IdentityFraudDetectionRequestException("Error while resolving payload data: "
                     + e.getMessage(), e);
         }
     }
@@ -181,18 +181,18 @@ public class SiftLoginEventUtil {
      * @param responseContent JSON string representing the response from Sift.
      * @param requestDTO      Sift fraud detector request DTO.
      * @return Sift fraud detector response DTO.
-     * @throws IdentityFraudDetectorResponseException if an error occurs while handling the response.
+     * @throws IdentityFraudDetectionResponseException if an error occurs while handling the response.
      */
     public static FraudDetectorResponseDTO handleLoginResponse(String responseContent,
                                                                SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorResponseException {
+            throws IdentityFraudDetectionResponseException {
 
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
         double riskScore = 0;
         String workflowDecision = null;
 
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. Returned" +
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
                     "Sift status code: " + responseBody.getStatus());
         }
 
@@ -216,7 +216,7 @@ public class SiftLoginEventUtil {
         }
 
         SiftFraudDetectorResponseDTO responseDTO = new SiftFraudDetectorResponseDTO(
-                FraudDetectorConstants.ExecutionStatus.SUCCESS, requestDTO.getEventName());
+                FraudDetectionConstants.ExecutionStatus.SUCCESS, requestDTO.getEventName());
         responseDTO.setRiskScore(riskScore);
         responseDTO.setWorkflowDecision(workflowDecision);
         return responseDTO;
@@ -227,10 +227,10 @@ public class SiftLoginEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved login status.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the login status.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the login status.
      */
     private static String resolveLoginStatus(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String internalEventName = (String) properties.get(INTERNAL_EVENT_NAME);
         if (AUTHENTICATION_SUCCESS.name().equals(internalEventName)) {
@@ -240,7 +240,7 @@ public class SiftLoginEventUtil {
             return "$failure";
         }
 
-        throw new IdentityFraudDetectorRequestException("Cannot resolve login status for the login event.");
+        throw new IdentityFraudDetectionRequestException("Cannot resolve login status for the login event.");
     }
 
     /**
@@ -248,9 +248,9 @@ public class SiftLoginEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved user ID.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the user ID.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the user ID.
      */
-    private static String resolveUserId(Map<String, Object> properties) throws IdentityFraudDetectorRequestException {
+    private static String resolveUserId(Map<String, Object> properties) throws IdentityFraudDetectionRequestException {
 
         Map<String, Object> params = (Map<String, Object>) properties.get(PARAMS);
         if (params.containsKey(USER) && params.get(USER) != null) {
@@ -263,7 +263,7 @@ public class SiftLoginEventUtil {
             return DigestUtils.sha256Hex(authenticatedUser.toString());
         }
 
-        throw new IdentityFraudDetectorRequestException("Cannot resolve user ID for the login event. " +
+        throw new IdentityFraudDetectionRequestException("Cannot resolve user ID for the login event. " +
                 "Authenticated user is null in the authentication context.");
     }
 
@@ -293,7 +293,7 @@ public class SiftLoginEventUtil {
             if (isLoginSuccessful(properties)) {
                 return null;
             }
-        } catch (IdentityFraudDetectorRequestException e) {
+        } catch (IdentityFraudDetectionRequestException e) {
             return null;
         }
 
@@ -339,7 +339,7 @@ public class SiftLoginEventUtil {
                     siftFailureReason = "$account_disabled";
                 }
             }
-        } catch (IdentityFraudDetectorRequestException e) {
+        } catch (IdentityFraudDetectionRequestException e) {
             // Catch the relevant exception to user not existing and return user not available as the reason.
             String errorMessage = e.getMessage();
             if (errorMessage != null && errorMessage.contains(ERROR_CODE_NON_EXISTING_USER.getCode())) {
@@ -373,10 +373,10 @@ public class SiftLoginEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return true if the login was successful, false otherwise.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while checking the login status.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while checking the login status.
      */
     private static boolean isLoginSuccessful(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String internalEventName = properties.containsKey(INTERNAL_EVENT_NAME) ?
                 (String) properties.get(INTERNAL_EVENT_NAME) : null;
@@ -390,7 +390,7 @@ public class SiftLoginEventUtil {
             return LOGIN_SUCCESS.name().equals(loginStatus);
         }
 
-        throw new IdentityFraudDetectorRequestException("Cannot resolve login status for the login event.");
+        throw new IdentityFraudDetectionRequestException("Cannot resolve login status for the login event.");
     }
 
     /**
@@ -399,10 +399,10 @@ public class SiftLoginEventUtil {
      * @param properties Map of properties related to the event.
      * @param claimUri   Claim URI to be resolved.
      * @return Resolved claim value.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the claim.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the claim.
      */
     private static String resolveUserClaim(Map<String, Object> properties, String claimUri)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         return resolveUserClaim(properties, claimUri, false);
     }
@@ -414,16 +414,16 @@ public class SiftLoginEventUtil {
      * @param claimUri        Claim URI to be resolved.
      * @param isIdentityClaim Whether the claim is an identity claim.
      * @return Resolved claim value.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the claim.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the claim.
      */
     private static String resolveUserClaim(Map<String, Object> properties, String claimUri, boolean isIdentityClaim)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         try {
             if (!isLoginSuccessful(properties)) {
                 return null;
             }
-        } catch (IdentityFraudDetectorRequestException e) {
+        } catch (IdentityFraudDetectionRequestException e) {
             return null;
         }
 

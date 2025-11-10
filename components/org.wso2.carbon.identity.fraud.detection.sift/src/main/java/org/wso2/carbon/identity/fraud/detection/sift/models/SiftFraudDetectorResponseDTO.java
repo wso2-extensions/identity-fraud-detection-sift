@@ -17,8 +17,8 @@
  */
 package org.wso2.carbon.identity.fraud.detection.sift.models;
 
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 
 /**
  * Data Transfer Object for Sift Fraud Detector Response.
@@ -34,8 +34,8 @@ public class SiftFraudDetectorResponseDTO extends FraudDetectorResponseDTO {
      * @param status    Execution status of the fraud detection.
      * @param eventName Name of the fraud detection event.
      */
-    public SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus status,
-                                        FraudDetectorConstants.FraudDetectionEvents eventName) {
+    public SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus status,
+                                        FraudDetectionConstants.FraudDetectionEvents eventName) {
 
         super(status, eventName);
     }

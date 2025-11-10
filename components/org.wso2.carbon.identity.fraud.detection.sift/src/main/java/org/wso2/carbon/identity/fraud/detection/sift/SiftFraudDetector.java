@@ -30,12 +30,12 @@ import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorReq
 import org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil;
 import org.wso2.carbon.identity.fraud.detection.sift.util.SiftLogUtil;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
-import org.wso2.carbon.identity.fraud.detectors.core.AbstractIdentityFraudDetector;
-import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.AbstractIdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 
 /**
  * Implementation of Sift Fraud Detector.
@@ -69,7 +69,7 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
 
     @Override
     public HttpUriRequest buildRequest(FraudDetectorRequestDTO fraudDetectorRequestDTO)
-            throws IdentityFraudDetectorException {
+            throws IdentityFraudDetectionException {
 
         String payload = SiftEventUtil.buildSiftEventPayload((SiftFraudDetectorRequestDTO) fraudDetectorRequestDTO);
         String siftRequestPath = Util.buildSiftRequestPath((SiftFraudDetectorRequestDTO) fraudDetectorRequestDTO);
@@ -84,10 +84,10 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
     @Override
     public FraudDetectorResponseDTO handleResponse(int responseStatusCode, String responseContent,
                                                    FraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorException {
+            throws IdentityFraudDetectionException {
 
         if (responseStatusCode != HttpStatus.SC_OK) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. " +
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. " +
                     "HTTP error code: " + responseStatusCode);
         }
 
@@ -95,7 +95,7 @@ public class SiftFraudDetector extends AbstractIdentityFraudDetector implements 
     }
 
     @Override
-    public String getMaskedRequestPayload(String payload) throws IdentityFraudDetectorException {
+    public String getMaskedRequestPayload(String payload) throws IdentityFraudDetectionException {
 
         return SiftLogUtil.getMaskedSiftPayload(new JSONObject(payload));
     }

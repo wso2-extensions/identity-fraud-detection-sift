@@ -27,10 +27,10 @@ import org.wso2.carbon.identity.application.authentication.framework.context.Ses
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 
 import java.util.Map;
 
@@ -50,10 +50,10 @@ public class SiftLogoutEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return JSON string of the logout event payload.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while building the payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while building the payload.
      */
     public static String handleLogoutEventPayload(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         Map<String, Object> properties = requestDTO.getProperties();
         String tenantDomain = (String) properties.get(TENANT_DOMAIN);
@@ -69,10 +69,10 @@ public class SiftLogoutEventUtil {
             logoutFieldSet.validate();
             return setAPIKey(logoutFieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building logout event payload: "
+            throw new IdentityFraudDetectionRequestException("Error while building logout event payload: "
                     + e.getMessage(), e);
         } catch (FrameworkException e) {
-            throw new IdentityFraudDetectorRequestException("Error while resolving payload data: "
+            throw new IdentityFraudDetectionRequestException("Error while resolving payload data: "
                     + e.getMessage(), e);
         }
     }
@@ -83,19 +83,19 @@ public class SiftLogoutEventUtil {
      * @param responseContent JSON string of the response content from Sift.
      * @param requestDTO      Sift fraud detector request DTO.
      * @return Sift fraud detector response DTO.
-     * @throws IdentityFraudDetectorResponseException if an error occurs while handling the response.
+     * @throws IdentityFraudDetectionResponseException if an error occurs while handling the response.
      */
     public static FraudDetectorResponseDTO handleLogoutResponse(String responseContent,
                                                                 SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorResponseException {
+            throws IdentityFraudDetectionResponseException {
 
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
-        FraudDetectorConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
+        FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. Returned" +
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
                     "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
-        return new SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus.SUCCESS, eventName);
+        return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
 
     /**
@@ -104,19 +104,19 @@ public class SiftLogoutEventUtil {
      * @param sessionContext Session context.
      * @return Resolved user ID.
      * @throws FrameworkException                       if an error occurs while accessing the session context.
-     * @throws IdentityFraudDetectorRequestException    if the user ID cannot be resolved.
+     * @throws IdentityFraudDetectionRequestException    if the user ID cannot be resolved.
      */
     private static String resolveUserId(SessionContext sessionContext)
-            throws FrameworkException, IdentityFraudDetectorRequestException {
+            throws FrameworkException, IdentityFraudDetectionRequestException {
 
         if (sessionContext == null) {
-            throw new IdentityFraudDetectorRequestException("Cannot resolve payload data. Both authentication " +
+            throw new IdentityFraudDetectionRequestException("Cannot resolve payload data. Both authentication " +
                     "context and session context are null.");
         }
         if (sessionContext.getProperties().containsKey(AUTHENTICATED_USER)) {
             return DigestUtils.sha256Hex(sessionContext.getProperties().get(AUTHENTICATED_USER).toString());
         } else {
-            throw new IdentityFraudDetectorRequestException("Cannot resolve payload data. Authenticated user is not " +
+            throw new IdentityFraudDetectionRequestException("Cannot resolve payload data. Authenticated user is not " +
                     "available in the session context.");
         }
     }

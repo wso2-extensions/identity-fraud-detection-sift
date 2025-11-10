@@ -38,7 +38,7 @@ import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.GetSiftWorkflowDecisionFunctionImpl;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunction;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunctionImpl;
-import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.common.IdentityConnectorConfig;
 

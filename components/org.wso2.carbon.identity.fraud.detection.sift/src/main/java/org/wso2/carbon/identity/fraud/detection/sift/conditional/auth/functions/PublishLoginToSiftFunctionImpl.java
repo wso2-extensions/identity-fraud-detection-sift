@@ -28,8 +28,8 @@ import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
-import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -60,13 +60,13 @@ public class PublishLoginToSiftFunctionImpl implements PublishLoginToSiftFunctio
         properties.put(TENANT_DOMAIN, context.getWrapped().getTenantDomain());
 
         SiftFraudDetectorRequestDTO requestDTO = new SiftFraudDetectorRequestDTO(
-                FraudDetectorConstants.FraudDetectionEvents.LOGIN, properties);
+                FraudDetectionConstants.FraudDetectionEvents.LOGIN, properties);
         requestDTO.setLogRequestPayload(isLoggingEnabled);
 
         IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
         SiftFraudDetectorResponseDTO responseDTO =
                 (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
-        if (FraudDetectorConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+        if (FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
             LOG.info("Successfully published login event information to Sift.");
         } else {
             throw new FrameworkException("Error occurred while publishing login event information to Sift.");

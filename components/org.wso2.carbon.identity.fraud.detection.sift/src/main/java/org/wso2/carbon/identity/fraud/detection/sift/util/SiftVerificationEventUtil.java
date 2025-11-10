@@ -25,10 +25,10 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.governance.service.notification.NotificationChannels;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
@@ -55,12 +55,12 @@ import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.r
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserId;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.FraudDetectionEvents.AUTHENTICATION_STEP_NOTIFICATION_VERIFICATION;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.FraudDetectionEvents.POST_SELF_REGISTRATION_VERIFICATION;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.FraudDetectionEvents.POST_USER_ATTRIBUTE_UPDATE_VERIFICATION;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.FraudDetectionEvents.SELF_REGISTRATION_VERIFICATION_NOTIFICATION;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.FraudDetectionEvents.USER_ATTRIBUTE_UPDATE_VERIFICATION_NOTIFICATION;
-import static org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants.INTERNAL_EVENT_NAME;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.AUTHENTICATION_STEP_NOTIFICATION_VERIFICATION;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.POST_SELF_REGISTRATION_VERIFICATION;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.POST_USER_ATTRIBUTE_UPDATE_VERIFICATION;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.SELF_REGISTRATION_VERIFICATION_NOTIFICATION;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.USER_ATTRIBUTE_UPDATE_VERIFICATION_NOTIFICATION;
+import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
 import static org.wso2.carbon.identity.recovery.IdentityRecoveryConstants.EMAIL_VERIFIED_CLAIM;
 import static org.wso2.carbon.identity.recovery.IdentityRecoveryConstants.NOTIFICATION_TYPE_ACCOUNT_CONFIRM;
 import static org.wso2.carbon.identity.recovery.IdentityRecoveryConstants.SEND_TO;
@@ -78,13 +78,13 @@ public class SiftVerificationEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return JSON string of the verification event payload.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while building the payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while building the payload.
      */
     public static String handleVerificationEventPayload(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         Map<String, Object> properties = requestDTO.getProperties();
-        FraudDetectorConstants.FraudDetectionEvents event = requestDTO.getEventName();
+        FraudDetectionConstants.FraudDetectionEvents event = requestDTO.getEventName();
         String tenantDomain = (String) properties.get(TENANT_DOMAIN);
 
         try {
@@ -106,7 +106,7 @@ public class SiftVerificationEventUtil {
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building verification event payload: "
+            throw new IdentityFraudDetectionRequestException("Error while building verification event payload: "
                     + e.getMessage(), e);
         }
     }
@@ -117,19 +117,19 @@ public class SiftVerificationEventUtil {
      * @param responseContent JSON string of the response content from Sift.
      * @param requestDTO      Sift fraud detector request DTO.
      * @return Sift fraud detector response DTO.
-     * @throws IdentityFraudDetectorResponseException if an error occurs while handling the response.
+     * @throws IdentityFraudDetectionResponseException if an error occurs while handling the response.
      */
     public static FraudDetectorResponseDTO handleVerificationResponse(String responseContent,
                                                                       SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorResponseException {
+            throws IdentityFraudDetectionResponseException {
 
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
-        FraudDetectorConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
+        FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. Returned" +
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
                     "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
-        return new SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus.SUCCESS, eventName);
+        return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
 
     /**
@@ -138,11 +138,11 @@ public class SiftVerificationEventUtil {
      * @param event      Fraud detection event.
      * @param properties Map of event properties.
      * @return Resolved session ID.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the session ID.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the session ID.
      */
-    private static String resolveSessionId(FraudDetectorConstants.FraudDetectionEvents event,
+    private static String resolveSessionId(FraudDetectionConstants.FraudDetectionEvents event,
                                            Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         if (isAttributeUpdateVerificationEvent(event)) {
 
@@ -152,7 +152,7 @@ public class SiftVerificationEventUtil {
                 String confirmationCode = (String) properties.get(CONFIRMATION_CODE);
                 return DigestUtils.sha256Hex(confirmationCode);
             }
-            throw new IdentityFraudDetectorRequestException("Cannot resolve session id for the attribute update " +
+            throw new IdentityFraudDetectionRequestException("Cannot resolve session id for the attribute update " +
                     "verification event.");
 
         } else if (isSelfRegistrationVerificationEvent(event)) {
@@ -163,7 +163,7 @@ public class SiftVerificationEventUtil {
                 String confirmationCode = (String) properties.get(CONFIRMATION_CODE);
                 return DigestUtils.sha256Hex(confirmationCode);
             }
-            throw new IdentityFraudDetectorRequestException("Cannot resolve session id for the self registration " +
+            throw new IdentityFraudDetectionRequestException("Cannot resolve session id for the self registration " +
                     "verification event.");
 
         } else if (AUTHENTICATION_STEP_NOTIFICATION_VERIFICATION.equals(event)) {
@@ -171,12 +171,12 @@ public class SiftVerificationEventUtil {
             if (properties.containsKey(CORRELATION_ID)) {
                 return DigestUtils.sha256Hex((String) properties.get(CORRELATION_ID));
             } else {
-                throw new IdentityFraudDetectorRequestException("Cannot resolve session id for the authentication " +
+                throw new IdentityFraudDetectionRequestException("Cannot resolve session id for the authentication " +
                         "step notification verification event.");
             }
         }
 
-        throw new IdentityFraudDetectorRequestException("Cannot resolve session id for the verification event.");
+        throw new IdentityFraudDetectionRequestException("Cannot resolve session id for the verification event.");
     }
 
     /**
@@ -185,10 +185,10 @@ public class SiftVerificationEventUtil {
      * @param event      Fraud detection event.
      * @param properties Map of event properties.
      * @return Resolved status.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the status.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the status.
      */
-    private static String resolveStatus(FraudDetectorConstants.FraudDetectionEvents event,
-                                        Map<String, Object> properties) throws IdentityFraudDetectorRequestException {
+    private static String resolveStatus(FraudDetectionConstants.FraudDetectionEvents event,
+                                        Map<String, Object> properties) throws IdentityFraudDetectionRequestException {
 
         if (USER_ATTRIBUTE_UPDATE_VERIFICATION_NOTIFICATION.equals(event)
                 || SELF_REGISTRATION_VERIFICATION_NOTIFICATION.equals(event)) {
@@ -212,7 +212,7 @@ public class SiftVerificationEventUtil {
             }
         }
 
-        throw new IdentityFraudDetectorRequestException("Cannot resolve status for the verification event.");
+        throw new IdentityFraudDetectionRequestException("Cannot resolve status for the verification event.");
     }
 
     /**
@@ -222,7 +222,7 @@ public class SiftVerificationEventUtil {
      * @param properties Map of event properties.
      * @return Resolved verified event.
      */
-    private static String resolveVerifiedEvent(FraudDetectorConstants.FraudDetectionEvents event,
+    private static String resolveVerifiedEvent(FraudDetectionConstants.FraudDetectionEvents event,
                                                Map<String, Object> properties) {
 
         if (isAttributeUpdateVerificationEvent(event)) {
@@ -270,7 +270,7 @@ public class SiftVerificationEventUtil {
      * @param properties Map of event properties.
      * @return Resolved verification type.
      */
-    private static String resolveVerificationType(FraudDetectorConstants.FraudDetectionEvents event,
+    private static String resolveVerificationType(FraudDetectionConstants.FraudDetectionEvents event,
                                                   Map<String, Object> properties) {
 
         if (isAttributeUpdateVerificationEvent(event)) {
@@ -318,12 +318,12 @@ public class SiftVerificationEventUtil {
      * @param event            Fraud detection event.
      * @param properties       Map of event properties.
      * @return Resolved verified value.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while resolving the verified value.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while resolving the verified value.
      */
     private static String resolveVerifiedValue(String verificationType,
-                                               FraudDetectorConstants.FraudDetectionEvents event,
+                                               FraudDetectionConstants.FraudDetectionEvents event,
                                                Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         if (StringUtils.isEmpty(verificationType)) {
             return null;
@@ -379,7 +379,7 @@ public class SiftVerificationEventUtil {
      * @param event Fraud detection event.
      * @return Resolved reason.
      */
-    private static String resolveReason(FraudDetectorConstants.FraudDetectionEvents event) {
+    private static String resolveReason(FraudDetectionConstants.FraudDetectionEvents event) {
 
         if (isAttributeUpdateVerificationEvent(event)) {
             return "$manual_review";
@@ -397,7 +397,7 @@ public class SiftVerificationEventUtil {
      * @param event Fraud detection event.
      * @return true if it is an attribute update verification event, false otherwise.
      */
-    private static boolean isAttributeUpdateVerificationEvent(FraudDetectorConstants.FraudDetectionEvents event) {
+    private static boolean isAttributeUpdateVerificationEvent(FraudDetectionConstants.FraudDetectionEvents event) {
 
         return USER_ATTRIBUTE_UPDATE_VERIFICATION_NOTIFICATION.equals(event)
                 || POST_USER_ATTRIBUTE_UPDATE_VERIFICATION.equals(event);
@@ -409,7 +409,7 @@ public class SiftVerificationEventUtil {
      * @param event Fraud detection event.
      * @return true if it is a self registration verification event, false otherwise.
      */
-    private static boolean isSelfRegistrationVerificationEvent(FraudDetectorConstants.FraudDetectionEvents event) {
+    private static boolean isSelfRegistrationVerificationEvent(FraudDetectionConstants.FraudDetectionEvents event) {
 
         return SELF_REGISTRATION_VERIFICATION_NOTIFICATION.equals(event)
                 || POST_SELF_REGISTRATION_VERIFICATION.equals(event);
@@ -422,7 +422,7 @@ public class SiftVerificationEventUtil {
      * @param fieldSet   Verification field set.
      * @param properties Map of event properties.
      */
-    private static void setCustomFields(FraudDetectorConstants.FraudDetectionEvents event,
+    private static void setCustomFields(FraudDetectionConstants.FraudDetectionEvents event,
                                         VerificationFieldSet fieldSet, Map<String, Object> properties) {
 
         if (!POST_USER_ATTRIBUTE_UPDATE_VERIFICATION.equals(event)) {

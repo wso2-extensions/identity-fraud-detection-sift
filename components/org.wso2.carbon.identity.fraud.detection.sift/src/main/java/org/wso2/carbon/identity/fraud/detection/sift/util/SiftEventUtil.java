@@ -25,12 +25,12 @@ import org.wso2.carbon.identity.application.common.model.User;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.FraudDetectionConfigServerException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.util.EventUtil;
+import org.wso2.carbon.identity.fraud.detection.core.exception.FraudDetectionConfigServerException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.util.EventUtil;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.UserStoreManager;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
@@ -64,11 +64,11 @@ public class SiftEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return Sift event payload as a JSON string.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while building the payload.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while building the payload.
      * @throws SiftUnsupportedEventException        If the event name is not supported by Sift.
      */
     public static String buildSiftEventPayload(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException, SiftUnsupportedEventException {
+            throws IdentityFraudDetectionRequestException, SiftUnsupportedEventException {
 
         switch (requestDTO.getEventName()) {
             case LOGIN:
@@ -100,11 +100,11 @@ public class SiftEventUtil {
      * @param responseContent Sift event response content.
      * @param requestDTO      Sift fraud detector request DTO.
      * @return Fraud detector response DTO.
-     * @throws IdentityFraudDetectorResponseException If an error occurs while handling the response.
+     * @throws IdentityFraudDetectionResponseException If an error occurs while handling the response.
      * @throws SiftUnsupportedEventException         If the event name is not supported by Sift.
      */
     public static FraudDetectorResponseDTO handleResponse(String responseContent, FraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorResponseException, SiftUnsupportedEventException {
+            throws IdentityFraudDetectionResponseException, SiftUnsupportedEventException {
 
         switch (requestDTO.getEventName()) {
             case LOGIN:
@@ -141,10 +141,10 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved user store domain.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the user store domain.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the user store domain.
      */
     protected static String resolveUserStoreDomain(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String userStoreDomain = properties.get(USER_STORE_DOMAIN) != null ?
                 (String) properties.get(USER_STORE_DOMAIN) : null;
@@ -153,7 +153,7 @@ public class SiftEventUtil {
 
             UserStoreManager userStoreManager = (UserStoreManager) properties.get(USER_STORE_MANAGER);
             if (userStoreManager == null) {
-                throw new IdentityFraudDetectorRequestException("Cannot resolve user id. User store manager is null.");
+                throw new IdentityFraudDetectionRequestException("Cannot resolve user id. User store manager is null.");
             }
             userStoreDomain = userStoreManager.getRealmConfiguration().getUserStoreProperty(PROPERTY_DOMAIN_NAME);
             properties.put(USER_STORE_DOMAIN, userStoreDomain);
@@ -168,9 +168,9 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved user id.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the user id.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the user id.
      */
-    protected static String resolveUserId(Map<String, Object> properties) throws IdentityFraudDetectorRequestException {
+    protected static String resolveUserId(Map<String, Object> properties) throws IdentityFraudDetectionRequestException {
 
         String username;
         String tenantDomain;
@@ -191,7 +191,7 @@ public class SiftEventUtil {
 
         if (StringUtils.isEmpty(username) || StringUtils.isEmpty(tenantDomain) ||
                 StringUtils.isEmpty(userStoreDomain)) {
-            throw new IdentityFraudDetectorRequestException("Cannot resolve user id. Username, tenant domain " +
+            throw new IdentityFraudDetectionRequestException("Cannot resolve user id. Username, tenant domain " +
                     "or user store domain is null.");
         }
 
@@ -219,10 +219,10 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved session id.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the session id.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the session id.
      */
     protected static String resolveSessionId(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         // TODO: Implement session id resolution logic.
         return null;
@@ -254,10 +254,10 @@ public class SiftEventUtil {
      * @param properties Map of properties related to the event.
      * @param claimUri   Claim URI of the user attribute to be resolved.
      * @return Resolved user attribute value.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the user attribute.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the user attribute.
      */
     protected static String resolveUserAttribute(Map<String, Object> properties, String claimUri)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         return resolveUserAttribute(properties, claimUri, false);
     }
@@ -269,11 +269,11 @@ public class SiftEventUtil {
      * @param claimUri       Claim URI of the user attribute to be resolved.
      * @param isIdentityClaim Flag indicating if the claim is an identity claim.
      * @return Resolved user attribute value.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the user attribute.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the user attribute.
      */
     protected static String resolveUserAttribute(Map<String, Object> properties, String claimUri,
                                                  boolean isIdentityClaim)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         if (!isIdentityClaim && !isAllowUserInfoInPayload(properties)) {
             LOG.debug("Cannot resolve claim: " + claimUri + " as user info is not allowed in payload.");
@@ -294,12 +294,12 @@ public class SiftEventUtil {
                 addClaimToProperties(properties, claimUri, claimValue);
             }
             return claimValue;
-        } catch (IdentityFraudDetectorRequestException e) {
+        } catch (IdentityFraudDetectionRequestException e) {
             LOG.debug("Cannot resolve claim: " + claimUri + " from the user store.", e);
             return null;
         } catch (UserStoreException e) {
             if (e.getMessage().contains(ERROR_CODE_NON_EXISTING_USER.getCode())) {
-                throw new IdentityFraudDetectorRequestException(e.getMessage());
+                throw new IdentityFraudDetectionRequestException(e.getMessage());
             }
             return null;
         }
@@ -328,10 +328,10 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved full name of the user.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the full name.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the full name.
      */
     protected static String resolveFullName(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String fullName = resolveUserAttribute(properties, "http://wso2.org/claims/fullname");
         if (StringUtils.isNotEmpty(fullName)) {
@@ -356,10 +356,10 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved user agent.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the user agent.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the user agent.
      */
     protected static String resolveUserAgent(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         if (!isAllowDeviceMetadataInPayload(properties)) {
             LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
@@ -380,10 +380,10 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return Resolved remote address.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while resolving the remote address.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the remote address.
      */
     protected static String resolveRemoteAddress(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         if (!isAllowDeviceMetadataInPayload(properties)) {
             LOG.debug("Cannot resolve remote address as device metadata is not allowed in payload.");
@@ -404,11 +404,11 @@ public class SiftEventUtil {
      * @param properties Map of properties related to the event.
      * @param claims     Array of claim URIs to be retrieved.
      * @return Map of claim URIs and their corresponding values.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while retrieving the claim values.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while retrieving the claim values.
      * @throws UserStoreException                    If an error occurs in the user store.
      */
     private static Map<String, String> getUserClaimValuesFromDB(Map<String, Object> properties, String[] claims)
-            throws IdentityFraudDetectorRequestException, UserStoreException {
+            throws IdentityFraudDetectionRequestException, UserStoreException {
 
         String username = properties.get(USER_NAME) != null ? (String) properties.get(USER_NAME) : null;
         String tenantDomain = properties.get(TENANT_DOMAIN) != null ? (String) properties.get(TENANT_DOMAIN) : null;
@@ -422,22 +422,22 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return true if user info is allowed in the payload, false otherwise.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while checking the configuration.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while checking the configuration.
      */
     protected static boolean isAllowUserInfoInPayload(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
                 (String) properties.get(TENANT_DOMAIN) : null;
         if (StringUtils.isEmpty(tenantDomain)) {
-            throw new IdentityFraudDetectorRequestException("Cannot check allow user info in payload. " +
+            throw new IdentityFraudDetectionRequestException("Cannot check allow user info in payload. " +
                     "Tenant domain is null.");
         }
 
         try {
             return EventUtil.isAllowUserInfoInPayload(tenantDomain);
         } catch (FraudDetectionConfigServerException e) {
-            throw new IdentityFraudDetectorRequestException("Error while retrieving fraud detection config for tenant: "
+            throw new IdentityFraudDetectionRequestException("Error while retrieving fraud detection config for tenant: "
                     + tenantDomain, e);
         }
     }
@@ -447,22 +447,22 @@ public class SiftEventUtil {
      *
      * @param properties Map of properties related to the event.
      * @return true if user info is allowed in the payload, false otherwise.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while checking the configuration.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while checking the configuration.
      */
     protected static boolean isAllowDeviceMetadataInPayload(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
                 (String) properties.get(TENANT_DOMAIN) : null;
         if (StringUtils.isEmpty(tenantDomain)) {
-            throw new IdentityFraudDetectorRequestException("Cannot check allow device metadata in payload. " +
+            throw new IdentityFraudDetectionRequestException("Cannot check allow device metadata in payload. " +
                     "Tenant domain is null.");
         }
 
         try {
             return EventUtil.isAllowDeviceMetadataInPayload(tenantDomain);
         } catch (FraudDetectionConfigServerException e) {
-            throw new IdentityFraudDetectorRequestException("Error while retrieving fraud detection config for tenant: "
+            throw new IdentityFraudDetectionRequestException("Error while retrieving fraud detection config for tenant: "
                     + tenantDomain, e);
         }
     }

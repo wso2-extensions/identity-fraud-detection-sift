@@ -36,7 +36,7 @@ import org.wso2.carbon.identity.application.common.model.Property;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.bean.ConnectorConfig;
@@ -84,17 +84,17 @@ public class Util {
      * @param fieldSet     Field set to set the API key.
      * @param tenantDomain Tenant domain.
      * @return JSON string of the field set with the API key.
-     * @throws IdentityFraudDetectorRequestException If an error occurs while setting the API key.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while setting the API key.
      */
     public static String setAPIKey(FieldSet<?> fieldSet, String tenantDomain)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         try {
             JSONObject payload = new JSONObject(fieldSet.toJson());
             payload.put(Constants.API_KEY, getSiftApiKey(tenantDomain));
             return payload.toString();
         } catch (FrameworkException e) {
-            throw new IdentityFraudDetectorRequestException("Error while retrieving Sift API key for tenant: " +
+            throw new IdentityFraudDetectionRequestException("Error while retrieving Sift API key for tenant: " +
                     tenantDomain, e);
         }
     }

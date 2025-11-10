@@ -23,11 +23,11 @@ import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdateAccountFieldSet;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorRequestException;
-import org.wso2.carbon.identity.fraud.detectors.core.exception.IdentityFraudDetectorResponseException;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorResponseDTO;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
@@ -53,10 +53,10 @@ public class SiftUserProfileUpdateEventUtil {
      *
      * @param requestDTO Fraud detector request DTO.
      * @return JSON string of the user profile update event payload.
-     * @throws IdentityFraudDetectorRequestException if an error occurs while building the payload.
+     * @throws IdentityFraudDetectionRequestException if an error occurs while building the payload.
      */
     public static String handlePostUserProfileUpdateEventPayload(FraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         Map<String, Object> properties = requestDTO.getProperties();
         String tenantDomain = (String) properties.get(TENANT_DOMAIN);
@@ -77,7 +77,7 @@ public class SiftUserProfileUpdateEventUtil {
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
-            throw new IdentityFraudDetectorRequestException("Error while building user profile update event payload: "
+            throw new IdentityFraudDetectionRequestException("Error while building user profile update event payload: "
                     + e.getMessage(), e);
         }
     }
@@ -88,19 +88,19 @@ public class SiftUserProfileUpdateEventUtil {
      * @param responseContent JSON string of the response content from Sift.
      * @param requestDTO      Sift fraud detector request DTO.
      * @return Sift fraud detector response DTO.
-     * @throws IdentityFraudDetectorResponseException if an error occurs while handling the response.
+     * @throws IdentityFraudDetectionResponseException if an error occurs while handling the response.
      */
     public static FraudDetectorResponseDTO handlePostUserProfileUpdateResponse(String responseContent,
                                                                                SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectorResponseException {
+            throws IdentityFraudDetectionResponseException {
 
         EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
-        FraudDetectorConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
+        FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
         if (responseBody.getStatus() != 0) {
-            throw new IdentityFraudDetectorResponseException("Error occurred while publishing event to Sift. Returned" +
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned" +
                     "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
         }
-        return new SiftFraudDetectorResponseDTO(FraudDetectorConstants.ExecutionStatus.SUCCESS, eventName);
+        return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
 
     /**
@@ -108,10 +108,10 @@ public class SiftUserProfileUpdateEventUtil {
      *
      * @param properties Map of event properties.
      * @return true if updated by admin, false if by user.
-     * @throws IdentityFraudDetectorRequestException if the scenario is invalid.
+     * @throws IdentityFraudDetectionRequestException if the scenario is invalid.
      */
     private static boolean isProfileUpdateByAdmin(Map<String, Object> properties)
-            throws IdentityFraudDetectorRequestException {
+            throws IdentityFraudDetectionRequestException {
 
         String scenario = (String) properties.get(SCENARIO);
         if ("POST_USER_PROFILE_UPDATE_BY_ADMIN".equals(scenario)) {
@@ -120,7 +120,7 @@ public class SiftUserProfileUpdateEventUtil {
             return false;
         }
 
-        throw new IdentityFraudDetectorRequestException("Unable to determine profile update initiator. " +
+        throw new IdentityFraudDetectionRequestException("Unable to determine profile update initiator. " +
                 "Invalid scenario: " + scenario);
     }
 

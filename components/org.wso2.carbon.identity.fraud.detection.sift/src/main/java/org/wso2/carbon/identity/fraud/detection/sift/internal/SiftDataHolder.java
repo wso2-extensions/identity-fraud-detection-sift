@@ -19,7 +19,7 @@
 package org.wso2.carbon.identity.fraud.detection.sift.internal;
 
 import org.wso2.carbon.identity.application.authentication.framework.JsFunctionRegistry;
-import org.wso2.carbon.identity.fraud.detectors.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 
 /**

@@ -17,8 +17,8 @@
  */
 package org.wso2.carbon.identity.fraud.detection.sift.models;
 
-import org.wso2.carbon.identity.fraud.detectors.core.constant.FraudDetectorConstants;
-import org.wso2.carbon.identity.fraud.detectors.core.model.FraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
 
 import java.util.Map;
 
@@ -37,7 +37,7 @@ public class SiftFraudDetectorRequestDTO extends FraudDetectorRequestDTO {
      * @param eventName  Name of the fraud detection event.
      * @param properties Map of properties related to the event.
      */
-    public SiftFraudDetectorRequestDTO(FraudDetectorConstants.FraudDetectionEvents eventName,
+    public SiftFraudDetectorRequestDTO(FraudDetectionConstants.FraudDetectionEvents eventName,
                                        Map<String, Object> properties) {
 
         super(eventName, properties);

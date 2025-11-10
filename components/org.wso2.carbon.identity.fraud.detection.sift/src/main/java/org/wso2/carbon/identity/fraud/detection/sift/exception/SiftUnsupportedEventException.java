@@ -17,7 +17,7 @@
  */
 package org.wso2.carbon.identity.fraud.detection.sift.exception;
 
-import org.wso2.carbon.identity.fraud.detectors.core.exception.UnsupportedFraudDetectionEventException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.UnsupportedFraudDetectionEventException;
 
 /**
  * Exception class for unsupported Sift events.
