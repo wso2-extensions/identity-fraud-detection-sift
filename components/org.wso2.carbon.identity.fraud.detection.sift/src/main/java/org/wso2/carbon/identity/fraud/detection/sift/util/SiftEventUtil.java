@@ -220,20 +220,6 @@ public class SiftEventUtil {
     }
 
     /**
-     * Resolves the session id from the properties map.
-     *
-     * @param properties Map of properties related to the event.
-     * @return Resolved session id.
-     * @throws IdentityFraudDetectionRequestException If an error occurs while resolving the session id.
-     */
-    protected static String resolveSessionId(Map<String, Object> properties)
-            throws IdentityFraudDetectionRequestException {
-
-        // TODO: Implement session id resolution logic.
-        return null;
-    }
-
-    /**
      * Validates the mobile number format to be in E.164 format.
      *
      * @param mobileNumber Mobile number to be validated.

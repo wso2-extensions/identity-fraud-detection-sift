@@ -38,7 +38,6 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_SELF_
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
-import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveSessionId;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserId;
@@ -71,7 +70,6 @@ public class SiftUserRegistrationEventUtil {
                     .setUserId(resolveUserId(properties))
                     .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
-                    .setSessionId(resolveSessionId(properties))
                     .setUserEmail(resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS))
                     .setPhone(validatedMobileNumber)
                     .setVerificationPhoneNumber(validatedMobileNumber)

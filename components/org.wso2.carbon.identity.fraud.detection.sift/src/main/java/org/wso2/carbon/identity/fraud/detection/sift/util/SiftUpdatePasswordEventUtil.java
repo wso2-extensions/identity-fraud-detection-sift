@@ -21,6 +21,7 @@ import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdatePasswordFieldSet;
+import org.apache.commons.lang.StringUtils;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
@@ -41,6 +42,7 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.FraudDetectionEvents.POST_UPDATE_PASSWORD;
 import static org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants.INTERNAL_EVENT_NAME;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.ACTION_PERFORMED_BY_ADMIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUpdateReason.FORCED_RESET;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUpdateReason.FORGOT_PASSWORD;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUpdateReason.USER_UPDATE;
@@ -88,6 +90,7 @@ public class SiftUpdatePasswordEventUtil {
                     .setVerificationPhoneNumber(validateMobileNumberFormat(
                             resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.MOBILE)))
                     .setCustomField(USER_UUID, resolveUserUUID(properties));
+            setCustomFields(properties, fieldSet);
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
         } catch (InvalidFieldException e) {
@@ -214,5 +217,29 @@ public class SiftUpdatePasswordEventUtil {
         throw new IdentityFraudDetectionRequestException("Cannot resolve status for update credential event.");
     }
 
-    // TODO: Check if the admin actions has to be marked differently.
+    /**
+     * Sets custom fields for the update password event.
+     *
+     * @param properties Event properties map.
+     * @param fieldSet   Update password field set.
+     */
+    public static void setCustomFields(Map<String, Object> properties, UpdatePasswordFieldSet fieldSet) {
+
+        String scenario = properties.containsKey(SCENARIO) ? (String) properties.get(SCENARIO) : StringUtils.EMPTY;
+        String reason = fieldSet.getReason();
+        String status = fieldSet.getStatus();
+        boolean isActionPerformedByAdmin = false;
+
+        if (PENDING.getValue().equals(status)) {
+            if (FORCED_RESET.getValue().equals(reason)) {
+                isActionPerformedByAdmin = true;
+            }
+        } else if (SUCCESS.getValue().equals(reason)) {
+            if (FORCED_RESET.getValue().equals(reason) && POST_CREDENTIAL_UPDATE_BY_ADMIN.equals(scenario)) {
+                isActionPerformedByAdmin = true;
+            }
+        }
+
+        fieldSet.setCustomField(ACTION_PERFORMED_BY_ADMIN, isActionPerformedByAdmin);
+    }
 }

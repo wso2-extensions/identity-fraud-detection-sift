@@ -98,6 +98,7 @@ public class Constants {
     public static final String LOGOUT_TRIGGERED_FROM_APPLICATION = "logout_triggered_from_application";
     public static final String USER_PROFILE_UPDATED_BY_ADMIN = "user_profile_updated_by_admin";
     public static final String VERIFIED_BY_END_USER = "verified_by_end_user";
+    public static final String ACTION_PERFORMED_BY_ADMIN = "action_performed_by_admin";
 
     // Sift event property values.
     public static final String MANUAL_REVIEW_VERIFICATION_TYPE = "$manual_review";
