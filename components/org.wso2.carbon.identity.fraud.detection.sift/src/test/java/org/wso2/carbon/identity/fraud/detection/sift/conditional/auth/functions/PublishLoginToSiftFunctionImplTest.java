@@ -18,13 +18,6 @@
 
 package org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpStatus;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.json.JSONObject;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -36,18 +29,18 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import org.wso2.carbon.identity.application.authentication.framework.config.model.graph.js.JsAuthenticationContext;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -58,18 +51,16 @@ import static org.mockito.Mockito.when;
 public class PublishLoginToSiftFunctionImplTest {
 
     @Mock
-    private CloseableHttpClient httpClient;
+    private IdentityFraudDetector siftFraudDetector;
 
     @Mock
-    private CloseableHttpResponse httpResponse;
-
-    @Mock
-    private HttpEntity httpEntity;
+    private SiftDataHolder siftDataHolder;
 
     @InjectMocks
     private PublishLoginToSiftFunctionImpl publishLoginToSiftFunction;
 
     private MockedStatic<Util> utilMockedStatic;
+    private MockedStatic<SiftDataHolder> siftDataHolderMockedStatic;
 
     private ByteArrayOutputStream logOutput;
 
@@ -78,9 +69,14 @@ public class PublishLoginToSiftFunctionImplTest {
 
         MockitoAnnotations.openMocks(this);
         utilMockedStatic = mockStatic(Util.class);
+        siftDataHolderMockedStatic = mockStatic(SiftDataHolder.class);
+
         when(Util.getPassedCustomParams(any())).thenReturn(new HashMap<>());
         when(Util.isLoggingEnabled(any())).thenReturn(true);
-        when(Util.buildPayload(any(), anyString(), anyMap())).thenReturn(new JSONObject());
+
+        // Mock SiftDataHolder singleton behavior
+        when(SiftDataHolder.getInstance()).thenReturn(siftDataHolder);
+        when(siftDataHolder.getSiftFraudDetector()).thenReturn(siftFraudDetector);
     }
 
     @BeforeMethod
@@ -95,59 +91,45 @@ public class PublishLoginToSiftFunctionImplTest {
     public void tearDown() {
 
         utilMockedStatic.close();
+        siftDataHolderMockedStatic.close();
     }
 
     @Test()
     public void testPublishLoginEventToSiftSuccess() throws Exception {
 
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_OK);
-        when(httpResponse.getEntity()).thenReturn(httpEntity);
-        when(httpEntity.getContent())
-                .thenReturn(new ByteArrayInputStream("{\"status\":0}".getBytes(StandardCharsets.UTF_8)));
+        // Mock successful response from SiftFraudDetector
+        SiftFraudDetectorResponseDTO successResponse = mock(SiftFraudDetectorResponseDTO.class);
+        when(successResponse.getStatus()).thenReturn(FraudDetectionConstants.ExecutionStatus.SUCCESS);
+        when(siftFraudDetector.publishRequest(any(SiftFraudDetectorRequestDTO.class))).thenReturn(successResponse);
 
-        publishLoginToSiftFunction.publishLoginEventToSift(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
+        // Mock JsAuthenticationContext
+        JsAuthenticationContext jsContext = mock(JsAuthenticationContext.class);
+        org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext authContext =
+                mock(org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext.class);
+        when(jsContext.getWrapped()).thenReturn(authContext);
+        when(authContext.getTenantDomain()).thenReturn("carbon.super");
+
+        publishLoginToSiftFunction.publishLoginEventToSift(jsContext, "LOGIN_SUCCESS", new HashMap<String, Object>());
 
         Assert.assertTrue(logOutput.toString().contains("Successfully published login event information to Sift."));
     }
 
-    @Test()
+    @Test(expectedExceptions = FrameworkException.class,
+            expectedExceptionsMessageRegExp = ".*Error occurred while publishing login event information to Sift.*")
     public void testPublishLoginEventToSiftSiftError() throws Exception {
 
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_OK);
-        when(httpResponse.getEntity()).thenReturn(httpEntity);
-        when(httpEntity.getContent())
-                .thenReturn(new ByteArrayInputStream("{\"status\":1}".getBytes(StandardCharsets.UTF_8)));
+        // Mock error response from SiftFraudDetector
+        SiftFraudDetectorResponseDTO errorResponse = mock(SiftFraudDetectorResponseDTO.class);
+        when(errorResponse.getStatus()).thenReturn(FraudDetectionConstants.ExecutionStatus.FAILURE);
+        when(siftFraudDetector.publishRequest(any(SiftFraudDetectorRequestDTO.class))).thenReturn(errorResponse);
 
-        publishLoginToSiftFunction.publishLoginEventToSift(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
+        // Mock JsAuthenticationContext
+        JsAuthenticationContext jsContext = mock(JsAuthenticationContext.class);
+        org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext authContext =
+                mock(org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext.class);
+        when(jsContext.getWrapped()).thenReturn(authContext);
+        when(authContext.getTenantDomain()).thenReturn("carbon.super");
 
-        Assert.assertTrue(logOutput.toString().contains("Error occurred from Sift while publishing login event" +
-                " information. Received Sift status: 1"));
-    }
-
-    @Test()
-    public void testPublishLoginEventToSiftErrorResponse() throws Exception {
-
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_INTERNAL_SERVER_ERROR);
-
-        publishLoginToSiftFunction.publishLoginEventToSift(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
-
-        Assert.assertTrue(logOutput.toString().contains("Error occurred while publishing login event information" +
-                " to Sift. HTTP Status code: 500"));
-
+        publishLoginToSiftFunction.publishLoginEventToSift(jsContext, "LOGIN_SUCCESS", new HashMap<String, Object>());
     }
 }

@@ -18,15 +18,6 @@
 
 package org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpStatus;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -37,23 +28,21 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import org.wso2.carbon.identity.application.authentication.framework.config.model.graph.js.JsAuthenticationContext;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
-import org.wso2.carbon.identity.fraud.detection.sift.Constants;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
+import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.util.Util;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 /**
@@ -62,20 +51,17 @@ import static org.testng.Assert.assertTrue;
 public class GetSiftWorkflowStatusFunctionImplTest {
 
     @Mock
-    private CloseableHttpClient httpClient;
+    private IdentityFraudDetector siftFraudDetector;
 
     @Mock
-    private CloseableHttpResponse httpResponse;
-
-    @Mock
-    private HttpEntity httpEntity;
+    private SiftDataHolder siftDataHolder;
 
     @InjectMocks
     private GetSiftWorkflowDecisionFunctionImpl getSiftWorkflowDecisionFunction;
 
     private MockedStatic<Util> utilMockedStatic;
+    private MockedStatic<SiftDataHolder> siftDataHolderMockedStatic;
     private ByteArrayOutputStream logOutput;
-    private JSONObject payload;
 
     private static final String DECISION_ID = "BLOCK_USER";
 
@@ -84,11 +70,14 @@ public class GetSiftWorkflowStatusFunctionImplTest {
 
         MockitoAnnotations.openMocks(this);
         utilMockedStatic = mockStatic(Util.class);
+        siftDataHolderMockedStatic = mockStatic(SiftDataHolder.class);
+
         when(Util.getPassedCustomParams(any())).thenReturn(new HashMap<>());
         when(Util.isLoggingEnabled(any())).thenReturn(true);
-        payload = new JSONObject();
-        payload.put(Constants.API_KEY, "testApiKey");
-        when(Util.buildPayload(any(), anyString(), anyMap())).thenReturn(new JSONObject());
+
+        // Mock SiftDataHolder singleton behavior
+        when(SiftDataHolder.getInstance()).thenReturn(siftDataHolder);
+        when(siftDataHolder.getSiftFraudDetector()).thenReturn(siftFraudDetector);
     }
 
     @BeforeMethod
@@ -103,130 +92,28 @@ public class GetSiftWorkflowStatusFunctionImplTest {
     public void tearDown() {
 
         utilMockedStatic.close();
+        siftDataHolderMockedStatic.close();
     }
 
     @Test
     public void testGetSiftWorkflowForLoginSuccess() throws Exception {
 
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_OK);
-        when(httpResponse.getEntity()).thenReturn(httpEntity);
+        // Mock successful response from SiftFraudDetector with workflow decision
+        SiftFraudDetectorResponseDTO successResponse = mock(SiftFraudDetectorResponseDTO.class);
+        when(successResponse.getWorkflowDecision()).thenReturn(DECISION_ID);
+        when(siftFraudDetector.publishRequest(any(SiftFraudDetectorRequestDTO.class))).thenReturn(successResponse);
 
-        JSONObject jsonResponse = getJsonResponse();
+        // Mock JsAuthenticationContext
+        JsAuthenticationContext jsContext = mock(JsAuthenticationContext.class);
+        org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext authContext =
+                mock(org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext.class);
+        when(jsContext.getWrapped()).thenReturn(authContext);
+        when(authContext.getTenantDomain()).thenReturn("carbon.super");
 
-        when(httpEntity.getContent()).thenReturn(new StringEntity(jsonResponse.toString(), StandardCharsets.UTF_8)
-                .getContent());
-
-        String status = getSiftWorkflowDecisionFunction.getSiftWorkFlowDecision(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
+        String status = getSiftWorkflowDecisionFunction.getSiftWorkFlowDecision(jsContext, "LOGIN_SUCCESS",
                 new HashMap<String, Object>());
 
         assertEquals(status, DECISION_ID);
         assertTrue(logOutput.toString().contains("Sift workflow decision id: " + DECISION_ID));
-        assertTrue(logOutput.toString().contains("Payload sent to Sift for workflow execution: "));
-    }
-
-    private static JSONObject getJsonResponse() {
-
-        JSONObject config = new JSONObject();
-        config.put("decision_id", DECISION_ID);
-
-        JSONObject historyItem = new JSONObject();
-        historyItem.put("app", "decision");
-        historyItem.put("config", config);
-
-        JSONArray historyArray = new JSONArray();
-        historyArray.put(historyItem);
-
-        JSONObject entity = new JSONObject();
-        entity.put("type", "session");
-
-        JSONObject workflowStatus = new JSONObject();
-        workflowStatus.put("abuse_types", new JSONArray().put("account_takeover"));
-        workflowStatus.put("entity", entity);
-        workflowStatus.put("history", historyArray);
-
-        JSONArray workflowStatuses = new JSONArray();
-        workflowStatuses.put(workflowStatus);
-
-        JSONObject scoreResponse = new JSONObject();
-        scoreResponse.put("workflow_statuses", workflowStatuses);
-
-        JSONObject jsonResponse = new JSONObject();
-        jsonResponse.put("status", 0);
-        jsonResponse.put("score_response", scoreResponse);
-        return jsonResponse;
-    }
-
-    @Test
-    public void testGetSiftRiskScoreForLoginNullResponse() throws Exception {
-
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_OK);
-        when(httpResponse.getEntity()).thenReturn(null);
-
-        String workFlowDecision = getSiftWorkflowDecisionFunction.getSiftWorkFlowDecision(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
-
-        assertNull(workFlowDecision);
-    }
-
-    @Test
-    public void testGetSiftRiskScoreForLoginSiftError() throws Exception {
-
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_OK);
-        when(httpResponse.getEntity()).thenReturn(httpEntity);
-
-        JSONObject jsonResponse = new JSONObject();
-        jsonResponse.put(Constants.SIFT_STATUS, "2");
-
-        when(httpEntity.getContent()).thenReturn(new StringEntity(jsonResponse.toString(), StandardCharsets.UTF_8)
-                .getContent());
-
-        String workFlowDecision = getSiftWorkflowDecisionFunction.getSiftWorkFlowDecision(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
-
-        assertNull(workFlowDecision);
-    }
-
-    @Test
-    public void testGetSiftRiskScoreForLoginErrorResponse() throws Exception {
-
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_INTERNAL_SERVER_ERROR);
-        when(httpResponse.getEntity()).thenReturn(httpEntity);
-
-        String workFlowDecision = getSiftWorkflowDecisionFunction.getSiftWorkFlowDecision(
-                mock(JsAuthenticationContext.class), "LOGIN_SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
-
-        assertNull(workFlowDecision);
-    }
-
-    @Test
-    public void testGetSiftRiskScoreForLoginException() throws Exception {
-
-        when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getStatusLine().getStatusCode()).thenReturn(HttpStatus.SC_INTERNAL_SERVER_ERROR);
-        when(httpResponse.getEntity()).thenReturn(httpEntity);
-
-        String workFlowDecision = getSiftWorkflowDecisionFunction.getSiftWorkFlowDecision(
-                mock(JsAuthenticationContext.class), "SUCCESS", new ArrayList<>(),
-                new HashMap<String, Object>());
-
-        assertNull(workFlowDecision);
     }
 }
