@@ -83,12 +83,26 @@ public class UtilTest {
     @Mock
     private OrganizationManager organizationManager;
 
+    private MockedStatic<SiftEventUtil> siftEventUtilMockedStatic;
+
     @BeforeMethod
     public void setup() {
 
         MockitoAnnotations.openMocks(this);
         SiftDataHolder.getInstance().setIdentityGovernanceService(identityService);
         SiftDataHolder.getInstance().setOrganizationManager(organizationManager);
+
+        // Mock SiftEventUtil static methods to avoid tenant validation issues
+        siftEventUtilMockedStatic = mockStatic(SiftEventUtil.class);
+        siftEventUtilMockedStatic.when(() ->
+                SiftEventUtil.isAllowDeviceMetadataInPayload(anyString())).thenReturn(true);
+    }
+
+    @org.testng.annotations.AfterMethod
+    public void teardown() {
+        if (siftEventUtilMockedStatic != null) {
+            siftEventUtilMockedStatic.close();
+        }
     }
 
     private void mockHttpRequest(AuthenticationContext ctx, String ip, String userAgent) {

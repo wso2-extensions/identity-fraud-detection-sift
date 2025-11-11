@@ -56,6 +56,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.HTTP_SERVL
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LOGIN_TYPE;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_API_KEY_PROP;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_HEADER;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.isAllowDeviceMetadataInPayload;
 
 /**
  * Util class to build the payload to be sent to Sift.
@@ -514,6 +515,19 @@ public class Util {
      */
     private static String getUserAgent(AuthenticationContext context) {
 
+        try {
+            if (!isAllowDeviceMetadataInPayload(context.getTenantDomain())) {
+                LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                return null;
+            }
+        } catch (IdentityFraudDetectionRequestException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Error while checking whether device metadata is allowed in payload for tenant: " +
+                        context.getTenantDomain(), e);
+            }
+            return null;
+        }
+
         Object httpServletRequest =
                 ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();
         if (httpServletRequest instanceof HttpServletRequestWrapper) {
@@ -541,6 +555,19 @@ public class Util {
      * @return IP address.
      */
     private static String getIpAddress(AuthenticationContext context) {
+
+        try {
+            if (!isAllowDeviceMetadataInPayload(context.getTenantDomain())) {
+                LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                return null;
+            }
+        } catch (IdentityFraudDetectionRequestException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Error while checking whether device metadata is allowed in payload for tenant: " +
+                        context.getTenantDomain(), e);
+            }
+            return null;
+        }
 
         Object httpServletRequest =
                 ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();

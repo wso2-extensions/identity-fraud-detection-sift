@@ -266,7 +266,9 @@ public class SiftEventUtil {
                                                  boolean isIdentityClaim)
             throws IdentityFraudDetectionRequestException {
 
-        if (!isIdentityClaim && !isAllowUserInfoInPayload(properties)) {
+        String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
+                (String) properties.get(TENANT_DOMAIN) : null;
+        if (!isIdentityClaim && !isAllowUserInfoInPayload(tenantDomain)) {
             LOG.debug("Cannot resolve claim: " + claimUri + " as user info is not allowed in payload.");
             return null;
         }
@@ -352,7 +354,9 @@ public class SiftEventUtil {
     protected static String resolveUserAgent(Map<String, Object> properties)
             throws IdentityFraudDetectionRequestException {
 
-        if (!isAllowDeviceMetadataInPayload(properties)) {
+        String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
+                (String) properties.get(TENANT_DOMAIN) : null;
+        if (!isAllowDeviceMetadataInPayload(tenantDomain)) {
             LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
             return null;
         }
@@ -376,7 +380,9 @@ public class SiftEventUtil {
     protected static String resolveRemoteAddress(Map<String, Object> properties)
             throws IdentityFraudDetectionRequestException {
 
-        if (!isAllowDeviceMetadataInPayload(properties)) {
+        String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
+                (String) properties.get(TENANT_DOMAIN) : null;
+        if (!isAllowDeviceMetadataInPayload(tenantDomain)) {
             LOG.debug("Cannot resolve remote address as device metadata is not allowed in payload.");
             return null;
         }
@@ -454,15 +460,13 @@ public class SiftEventUtil {
     /**
      * Checks if user info is allowed in the payload based on tenant configuration.
      *
-     * @param properties Map of properties related to the event.
+     * @param tenantDomain Tenant domain.
      * @return true if user info is allowed in the payload, false otherwise.
      * @throws IdentityFraudDetectionRequestException If an error occurs while checking the configuration.
      */
-    protected static boolean isAllowUserInfoInPayload(Map<String, Object> properties)
+    protected static boolean isAllowUserInfoInPayload(String tenantDomain)
             throws IdentityFraudDetectionRequestException {
 
-        String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
-                (String) properties.get(TENANT_DOMAIN) : null;
         if (StringUtils.isEmpty(tenantDomain)) {
             throw new IdentityFraudDetectionRequestException("Cannot check allow user info in payload. " +
                     "Tenant domain is null.");
@@ -479,15 +483,13 @@ public class SiftEventUtil {
     /**
      * Checks if user info is allowed in the payload based on tenant configuration.
      *
-     * @param properties Map of properties related to the event.
+     * @param tenantDomain Tenant domain.
      * @return true if user info is allowed in the payload, false otherwise.
      * @throws IdentityFraudDetectionRequestException If an error occurs while checking the configuration.
      */
-    protected static boolean isAllowDeviceMetadataInPayload(Map<String, Object> properties)
+    protected static boolean isAllowDeviceMetadataInPayload(String tenantDomain)
             throws IdentityFraudDetectionRequestException {
 
-        String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
-                (String) properties.get(TENANT_DOMAIN) : null;
         if (StringUtils.isEmpty(tenantDomain)) {
             throw new IdentityFraudDetectionRequestException("Cannot check allow device metadata in payload. " +
                     "Tenant domain is null.");
