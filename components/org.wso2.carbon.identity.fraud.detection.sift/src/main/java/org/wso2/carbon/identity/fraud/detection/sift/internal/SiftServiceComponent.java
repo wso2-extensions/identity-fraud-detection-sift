@@ -20,7 +20,6 @@ package org.wso2.carbon.identity.fraud.detection.sift.internal;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
@@ -31,17 +30,18 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.identity.application.authentication.framework.JsFunctionRegistry;
 import org.wso2.carbon.identity.core.util.IdentityCoreInitializedEvent;
-import org.wso2.carbon.identity.fraud.detection.sift.HttpClientManager;
+import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.sift.SiftConnectorConfig;
+import org.wso2.carbon.identity.fraud.detection.sift.SiftFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.CallSiftOnLoginFunction;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.CallSiftOnLoginFunctionImpl;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.GetSiftWorkflowDecisionFunction;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.GetSiftWorkflowDecisionFunctionImpl;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunction;
 import org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions.PublishLoginToSiftFunctionImpl;
-import org.wso2.carbon.identity.fraud.detection.sift.models.ConnectionConfig;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.common.IdentityConnectorConfig;
+import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 
 /**
  * Service component for Sift.
@@ -56,19 +56,15 @@ public class SiftServiceComponent {
     public static final String FUNC_CALL_SIFT = "getSiftRiskScoreForLogin";
     public static final String FUNC_PUBLISH_LOGIN_TO_SIFT = "publishLoginEventToSift";
     private static final Log LOG = LogFactory.getLog(SiftServiceComponent.class);
-    private CloseableHttpClient httpClient;
 
     @Activate
     protected void activate(ComponentContext context) {
 
         try {
-            ConnectionConfig connectionConfig = new ConnectionConfig.Builder().build();
-            httpClient = HttpClientManager.getInstance().getHttpClient(connectionConfig);
             JsFunctionRegistry jsFunctionRegistry = SiftDataHolder.getInstance().getJsFunctionRegistry();
-            CallSiftOnLoginFunction getSiftRiskScoreForLogin = new CallSiftOnLoginFunctionImpl(httpClient);
-            GetSiftWorkflowDecisionFunction getSiftWorkflowDecisionFunction =
-                    new GetSiftWorkflowDecisionFunctionImpl(httpClient);
-            PublishLoginToSiftFunction publishLoginToSiftFunction = new PublishLoginToSiftFunctionImpl(httpClient);
+            CallSiftOnLoginFunction getSiftRiskScoreForLogin = new CallSiftOnLoginFunctionImpl();
+            GetSiftWorkflowDecisionFunction getSiftWorkflowDecisionFunction = new GetSiftWorkflowDecisionFunctionImpl();
+            PublishLoginToSiftFunction publishLoginToSiftFunction = new PublishLoginToSiftFunctionImpl();
             jsFunctionRegistry.register(JsFunctionRegistry.Subsystem.SEQUENCE_HANDLER, FUNC_CALL_SIFT,
                     getSiftRiskScoreForLogin);
             jsFunctionRegistry.register(JsFunctionRegistry.Subsystem.SEQUENCE_HANDLER, FUNC_GET_WORKFLOW_DECISION,
@@ -79,6 +75,10 @@ public class SiftServiceComponent {
             BundleContext bundleContext = context.getBundleContext();
             SiftConnectorConfig siftConfigConnector = new SiftConnectorConfig();
             bundleContext.registerService(IdentityConnectorConfig.class.getName(), siftConfigConnector, null);
+
+            IdentityFraudDetector siftFraudDetector = new SiftFraudDetector();
+            SiftDataHolder.getInstance().setSiftFraudDetector(siftFraudDetector);
+            bundleContext.registerService(IdentityFraudDetector.class.getName(), siftFraudDetector, null);
         } catch (Throwable e) {
             LOG.error("Error while activating SiftServiceComponent.", e);
         }
@@ -92,10 +92,6 @@ public class SiftServiceComponent {
         if (jsFunctionRegistry != null) {
             jsFunctionRegistry.deRegister(JsFunctionRegistry.Subsystem.SEQUENCE_HANDLER, FUNC_CALL_SIFT);
             jsFunctionRegistry.deRegister(JsFunctionRegistry.Subsystem.SEQUENCE_HANDLER, FUNC_PUBLISH_LOGIN_TO_SIFT);
-        }
-
-        if (httpClient != null) {
-            HttpClientManager.getInstance().closeHttpClient(httpClient);
         }
     }
 
@@ -149,5 +145,21 @@ public class SiftServiceComponent {
     protected void unsetIdentityGovernanceService(IdentityGovernanceService identityGovernanceService) {
 
         SiftDataHolder.getInstance().setIdentityGovernanceService(null);
+    }
+
+    @Reference(
+            name = "organization.management.service",
+            service = OrganizationManager.class,
+            cardinality = ReferenceCardinality.MANDATORY,
+            policy = ReferencePolicy.DYNAMIC,
+            unbind = "unsetOrganizationManager")
+    protected void setOrganizationManager(OrganizationManager organizationManager) {
+
+        SiftDataHolder.getInstance().setOrganizationManager(organizationManager);
+    }
+
+    protected void unsetOrganizationManager(OrganizationManager organizationManager) {
+
+        SiftDataHolder.getInstance().setOrganizationManager(null);
     }
 }

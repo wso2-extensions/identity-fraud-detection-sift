@@ -18,6 +18,9 @@
 
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
+import com.siftscience.FieldSet;
+import com.siftscience.model.Browser;
+import com.siftscience.model.LoginFieldSet;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -30,11 +33,16 @@ import org.wso2.carbon.identity.application.authentication.framework.context.Aut
 import org.wso2.carbon.identity.application.authentication.framework.context.TransientObjectWrapper;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.common.model.Property;
+import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.governance.IdentityGovernanceException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.bean.ConnectorConfig;
+import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
+import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
+import org.wso2.carbon.identity.organization.management.service.util.OrganizationManagementUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +56,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.HTTP_SERVL
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LOGIN_TYPE;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_API_KEY_PROP;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_HEADER;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.isAllowDeviceMetadataInPayload;
 
 /**
  * Util class to build the payload to be sent to Sift.
@@ -55,6 +64,45 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT
 public class Util {
 
     private static final Log LOG = LogFactory.getLog(Util.class);
+
+    /**
+     * Build the Sift request path based on the request DTO.
+     *
+     * @param requestDTO Sift fraud detector request DTO.
+     * @return Sift request path.
+     */
+    public static String buildSiftRequestPath(SiftFraudDetectorRequestDTO requestDTO) {
+
+        if (requestDTO.isReturnRiskScore()) {
+            return Constants.SIFT_API_URL + Constants.RETURN_SCORE_PARAM;
+        } else if (requestDTO.isReturnWorkflowDecision()) {
+            return Constants.SIFT_API_URL + Constants.RETURN_WORKFLOW_PARAM;
+        } else {
+            return Constants.SIFT_API_URL;
+        }
+    }
+
+    /**
+     * Set the API key in the given field set.
+     *
+     * @param fieldSet     Field set to set the API key.
+     * @param tenantDomain Tenant domain.
+     * @return JSON string of the field set with the API key.
+     * @throws IdentityFraudDetectionRequestException If an error occurs while setting the API key.
+     */
+    public static String setAPIKey(FieldSet<?> fieldSet, String tenantDomain)
+            throws IdentityFraudDetectionRequestException {
+
+        try {
+            JSONObject payload = new JSONObject(fieldSet.toJson());
+            payload.put(Constants.API_KEY, getSiftApiKey(tenantDomain));
+            return payload.toString();
+        } catch (FrameworkException e) {
+            throw new IdentityFraudDetectionRequestException("Error while retrieving Sift API key for tenant: " +
+                    tenantDomain, e);
+        }
+    }
+
 
     /**
      * Build the payload to be sent to Sift.
@@ -150,6 +198,68 @@ public class Util {
     }
 
     /**
+     * Process the default parameters and remove them from the custom parameters.
+     *
+     * @param loginFieldSet      Login field set.
+     * @param passedCustomParams Custom parameters passed by the user.
+     */
+    protected static void processDefaultParameters(LoginFieldSet loginFieldSet,
+                                                     Map<String, Object> passedCustomParams) {
+
+        if (passedCustomParams == null) {
+            return;
+        }
+
+        if (passedCustomParams.containsKey(Constants.IP_KEY)) {
+            String ip = (String) passedCustomParams.get(Constants.IP_KEY);
+            if (StringUtils.isNotBlank(ip)) {
+                loginFieldSet.setIp(ip);
+            }
+            passedCustomParams.remove(Constants.IP_KEY);
+        }
+
+        if (passedCustomParams.containsKey(Constants.SESSION_ID_KEY)) {
+            String sessionId = (String) passedCustomParams.get(Constants.SESSION_ID_KEY);
+            if (StringUtils.isNotBlank(sessionId)) {
+                loginFieldSet.setSessionId(sessionId);
+            }
+            passedCustomParams.remove(Constants.SESSION_ID_KEY);
+        }
+
+        if (passedCustomParams.containsKey(Constants.USER_AGENT_KEY)) {
+            String userAgent = (String) passedCustomParams.get(Constants.USER_AGENT_KEY);
+            if (StringUtils.isNotBlank(userAgent)) {
+                loginFieldSet.setBrowser(new Browser().setUserAgent(userAgent));
+            }
+            passedCustomParams.remove(Constants.USER_AGENT_KEY);
+        }
+
+        // As the user_id is a mandatory field, it shouldn't be removed from the payload.
+        if (passedCustomParams.containsKey(Constants.USER_ID_KEY)) {
+            String userId = (String) passedCustomParams.get(Constants.USER_ID_KEY);
+            if (StringUtils.isNotBlank(userId)) {
+                loginFieldSet.setUserId(userId);
+            }
+            passedCustomParams.remove(Constants.USER_ID_KEY);
+        }
+    }
+
+    /**
+     * Process the custom parameters and add them to the login field set.
+     *
+     * @param loginFieldSet      Login field set.
+     * @param passedCustomParams Custom parameters passed by the user.
+     */
+    protected static void processCustomParameters(LoginFieldSet loginFieldSet, Map<String, Object> passedCustomParams) {
+
+        if (passedCustomParams != null) {
+            for (Map.Entry<String, Object> entry : passedCustomParams.entrySet()) {
+                loginFieldSet.setCustomField(entry.getKey(), entry.getValue().toString());
+            }
+        }
+    }
+
+    /**
      * Get the custom parameters passed by the user.
      *
      * @param paramMap Parameters passed by the user.
@@ -169,7 +279,14 @@ public class Util {
         return passedCustomParams;
     }
 
-    private static String getSiftApiKey(String tenantDomain) throws FrameworkException {
+    /**
+     * Get the Sift API key for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Sift API key.
+     * @throws FrameworkException If an error occurs while retrieving the Sift API key.
+     */
+    public static String getSiftApiKey(String tenantDomain) throws FrameworkException {
 
         String apiKey = getSiftConfigs(tenantDomain).get(SIFT_API_KEY_PROP);
         if (apiKey == null) {
@@ -178,13 +295,22 @@ public class Util {
         return apiKey;
     }
 
+    /**
+     * Get the Sift configurations for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Sift configurations.
+     * @throws FrameworkException If an error occurs while retrieving the Sift configurations.
+     */
     private static Map<String, String> getSiftConfigs(String tenantDomain) throws FrameworkException {
 
         try {
+            String rootTenantDomain = OrganizationManagementUtil.isOrganization(tenantDomain) ?
+                    getPrimaryTenantDomain(tenantDomain) : tenantDomain;
             ConnectorConfig connectorConfig =
-                    getIdentityGovernanceService().getConnectorWithConfigs(tenantDomain, CONNECTOR_NAME);
+                    getIdentityGovernanceService().getConnectorWithConfigs(rootTenantDomain, CONNECTOR_NAME);
             if (connectorConfig == null) {
-                throw new FrameworkException("Sift configurations not found for tenant: " + tenantDomain);
+                throw new FrameworkException("Sift configurations not found for tenant: " + rootTenantDomain);
             }
             Map<String, String> siftConfigs = new HashMap<>();
             // Go through the connector config and get the sift configurations.
@@ -193,10 +319,25 @@ public class Util {
             }
 
             return siftConfigs;
-        } catch (IdentityGovernanceException e) {
+        } catch (IdentityGovernanceException | OrganizationManagementException e) {
             throw new FrameworkException("Error while retrieving sift configurations: " + e.getMessage());
         }
 
+    }
+
+    /**
+     * Retrieves the primary tenant domain for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Primary tenant domain.
+     * @throws OrganizationManagementException If an error occurs while retrieving the primary tenant domain.
+     */
+    private static String getPrimaryTenantDomain(String tenantDomain) throws OrganizationManagementException {
+
+        OrganizationManager organizationManager = SiftDataHolder.getInstance().getOrganizationManager();
+        String orgId = organizationManager.resolveOrganizationId(tenantDomain);
+        String primaryOrgId = organizationManager.getPrimaryOrganizationId(orgId);
+        return organizationManager.resolveTenantDomain(primaryOrgId);
     }
 
     /**
@@ -228,7 +369,13 @@ public class Util {
         return SiftDataHolder.getInstance().getIdentityGovernanceService();
     }
 
-    private static Constants.LoginStatus getLoginStatus(String status) {
+    /**
+     * Get the login status enum based on the status string.
+     *
+     * @param status Login status string.
+     * @return Login status enum.
+     */
+    protected static Constants.LoginStatus getLoginStatus(String status) {
 
         if (Constants.LoginStatus.LOGIN_SUCCESS.getStatus().equalsIgnoreCase(status)) {
             return Constants.LoginStatus.LOGIN_SUCCESS;
@@ -239,7 +386,39 @@ public class Util {
         }
     }
 
-    private static String resolvePayloadData(String key, JsAuthenticationContext context) throws FrameworkException {
+    /**
+     * Resolve the payload data based on the key.
+     *
+     * @param key     Key to resolve.
+     * @param context Authentication context.
+     * @return Resolved payload data.
+     * @throws FrameworkException If an error occurs while resolving the payload data.
+     */
+    protected static String resolvePayloadData(String key, JsAuthenticationContext context) throws FrameworkException {
+
+        switch (key) {
+            case Constants.USER_ID_KEY:
+                return getHashedUserId(context);
+            case Constants.USER_AGENT_KEY:
+                return getUserAgent(context);
+            case Constants.IP_KEY:
+                return getIpAddress(context);
+            case Constants.SESSION_ID_KEY:
+                return generateSessionHash(context);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Resolve the payload data based on the key.
+     *
+     * @param key     Key to resolve.
+     * @param context Authentication context.
+     * @return Resolved payload data.
+     * @throws FrameworkException If an error occurs while resolving the payload data.
+     */
+    protected static String resolvePayloadData(String key, AuthenticationContext context) throws FrameworkException {
 
         switch (key) {
             case Constants.USER_ID_KEY:
@@ -265,14 +444,12 @@ public class Util {
      */
     private static String getHashedUserId(JsAuthenticationContext ctx) throws FrameworkException {
 
-
         AuthenticationContext authenticationContext = ctx.getWrapped();
-        int currentStep = authenticationContext.getCurrentStep();
-        StepConfig stepConfig = authenticationContext.getSequenceConfig().getStepMap().get(currentStep);
-        if (stepConfig != null && stepConfig.getAuthenticatedUser() != null) {
-            String username = stepConfig.getAuthenticatedUser().getUsernameAsSubjectIdentifier(true, true);
-            if (StringUtils.isNotBlank(username)) {
-                return DigestUtils.sha256Hex(username);
+        try {
+            return getHashedUserId(authenticationContext);
+        } catch (FrameworkException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Unable to get the user ID from the step configuration.", e);
             }
         }
 
@@ -296,11 +473,67 @@ public class Util {
         throw new FrameworkException("Unable to resolve user ID from the ctx or step configuration.");
     }
 
+    /**
+     * Get the hashed user ID from the current step's authenticated user.
+     *
+     * @param authenticationContext Authentication context.
+     * @return Hashed user ID or null if not available.
+     */
+    private static String getHashedUserId(AuthenticationContext authenticationContext) throws FrameworkException {
 
+        int currentStep = authenticationContext.getCurrentStep();
+        if (currentStep == 0) {
+            // During logout requests, the current step is 0. Hence, to continue identifying the user, set 1 as
+            // the current step.
+            currentStep = 1;
+        }
+        StepConfig stepConfig = authenticationContext.getSequenceConfig().getStepMap().get(currentStep);
+        if (stepConfig != null && stepConfig.getAuthenticatedUser() != null) {
+            String username = stepConfig.getAuthenticatedUser().getUsernameAsSubjectIdentifier(true, true);
+            if (StringUtils.isNotBlank(username)) {
+                return DigestUtils.sha256Hex(username);
+            }
+        }
+
+        throw new FrameworkException("Unable to resolve user ID from the step configuration.");
+    }
+
+    /**
+     * Get the user agent from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return User agent.
+     */
     private static String getUserAgent(JsAuthenticationContext context) {
 
-        Object httpServletRequest = ((TransientObjectWrapper<?>) context.getWrapped().getParameter
-                (HTTP_SERVLET_REQUEST)).getWrapped();
+        return getUserAgent(context.getWrapped());
+    }
+
+    /**
+     * Get the user agent from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return User agent.
+     */
+    private static String getUserAgent(AuthenticationContext context) {
+
+        try {
+            if (!isAllowDeviceMetadataInPayload(context.getTenantDomain())) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                }
+                return null;
+            }
+        } catch (IdentityFraudDetectionRequestException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Error while checking whether device metadata is allowed in payload for tenant: " +
+                        context.getTenantDomain(), e);
+            }
+            return null;
+        }
+
+        Object httpServletRequest =
+                ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();
         if (httpServletRequest instanceof HttpServletRequestWrapper) {
             HttpServletRequestWrapper httpServletRequestWrapper = (HttpServletRequestWrapper) httpServletRequest;
             return httpServletRequestWrapper.getHeader(USER_AGENT_HEADER);
@@ -308,10 +541,42 @@ public class Util {
         return null;
     }
 
+    /**
+     * Get the IP address from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return IP address.
+     */
     private static String getIpAddress(JsAuthenticationContext context) {
 
-        Object httpServletRequest = ((TransientObjectWrapper<?>) context.getWrapped().getParameter
-                (HTTP_SERVLET_REQUEST)).getWrapped();
+        return getIpAddress(context.getWrapped());
+    }
+
+    /**
+     * Get the IP address from the HTTP servlet request.
+     *
+     * @param context Authentication context.
+     * @return IP address.
+     */
+    private static String getIpAddress(AuthenticationContext context) {
+
+        try {
+            if (!isAllowDeviceMetadataInPayload(context.getTenantDomain())) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                }
+                return null;
+            }
+        } catch (IdentityFraudDetectionRequestException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Error while checking whether device metadata is allowed in payload for tenant: " +
+                        context.getTenantDomain(), e);
+            }
+            return null;
+        }
+
+        Object httpServletRequest =
+                ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();
         if (httpServletRequest instanceof HttpServletRequestWrapper) {
             HttpServletRequestWrapper authenticationFrameworkWrapper = (HttpServletRequestWrapper) httpServletRequest;
             return authenticationFrameworkWrapper.getRemoteAddr();
@@ -336,11 +601,33 @@ public class Util {
         return isLoggingEnabled;
     }
 
+    /**
+     * Generate a SHA-256 hash of the session identifier.
+     *
+     * @param context JsAuthentication context.
+     * @return SHA-256 hash of the session identifier.
+     * @throws FrameworkException If an error occurs while generating the hash.
+     */
     private static String generateSessionHash(JsAuthenticationContext context) throws FrameworkException {
 
         if (context.getWrapped().getContextIdentifier() == null) {
             throw new FrameworkException("Context identifier is null.");
         }
         return DigestUtils.sha256Hex(context.getWrapped().getContextIdentifier());
+    }
+
+    /**
+     * Generate a SHA-256 hash of the session identifier.
+     *
+     * @param context Authentication context.
+     * @return SHA-256 hash of the session identifier.
+     * @throws FrameworkException If an error occurs while generating the hash.
+     */
+    private static String generateSessionHash(AuthenticationContext context) throws FrameworkException {
+
+        if (context.getContextIdentifier() == null) {
+            throw new FrameworkException("Context identifier is null.");
+        }
+        return DigestUtils.sha256Hex(context.getContextIdentifier());
     }
 }

@@ -21,6 +21,7 @@ package org.wso2.carbon.identity.fraud.detection.sift.util;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONObject;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -39,6 +40,8 @@ import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.governance.IdentityGovernanceException;
 import org.wso2.carbon.identity.governance.IdentityGovernanceService;
 import org.wso2.carbon.identity.governance.bean.ConnectorConfig;
+import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
+import org.wso2.carbon.identity.organization.management.service.util.OrganizationManagementUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +51,7 @@ import javax.servlet.http.HttpServletRequestWrapper;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -76,12 +80,29 @@ public class UtilTest {
     private JsAuthenticationContext jsContext;
     @Mock
     private IdentityGovernanceService identityService;
+    @Mock
+    private OrganizationManager organizationManager;
+
+    private MockedStatic<SiftEventUtil> siftEventUtilMockedStatic;
 
     @BeforeMethod
     public void setup() {
 
         MockitoAnnotations.openMocks(this);
         SiftDataHolder.getInstance().setIdentityGovernanceService(identityService);
+        SiftDataHolder.getInstance().setOrganizationManager(organizationManager);
+
+        // Mock SiftEventUtil static methods to avoid tenant validation issues
+        siftEventUtilMockedStatic = mockStatic(SiftEventUtil.class);
+        siftEventUtilMockedStatic.when(() ->
+                SiftEventUtil.isAllowDeviceMetadataInPayload(anyString())).thenReturn(true);
+    }
+
+    @org.testng.annotations.AfterMethod
+    public void teardown() {
+        if (siftEventUtilMockedStatic != null) {
+            siftEventUtilMockedStatic.close();
+        }
     }
 
     private void mockHttpRequest(AuthenticationContext ctx, String ip, String userAgent) {
@@ -126,181 +147,217 @@ public class UtilTest {
     @Test
     public void testBuildDefaultPayloadFromCurrentKnownSubject() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
 
-        mockStepConfigWithUser(ctx, null);
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
 
-        AuthenticatedUser authUser = mock(AuthenticatedUser.class);
-        when(authUser.getUsernameAsSubjectIdentifier(true, true)).thenReturn(USER_1);
-        JsAuthenticatedUser jsUser = mock(JsAuthenticatedUser.class);
-        when(jsUser.getWrapped()).thenReturn(authUser);
+            mockStepConfigWithUser(ctx, null);
 
-        when(ctx.getLastAuthenticatedUser()).thenReturn(authUser);
-        when(jsContext.getMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(jsUser);
+            AuthenticatedUser authUser = mock(AuthenticatedUser.class);
+            when(authUser.getUsernameAsSubjectIdentifier(true, true)).thenReturn(USER_1);
+            JsAuthenticatedUser jsUser = mock(JsAuthenticatedUser.class);
+            when(jsUser.getWrapped()).thenReturn(authUser);
 
-        mockApiKey("dummyApiKey");
+            when(ctx.getLastAuthenticatedUser()).thenReturn(authUser);
+            when(jsContext.getMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(jsUser);
 
-        JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
-        assertEquals(payload.getString(Constants.LOGIN_STATUS), "$success");
-        assertEquals(payload.getString(Constants.USER_ID_KEY), DigestUtils.sha256Hex(USER_1));
-        assertEquals(payload.getString(Constants.SESSION_ID_KEY), DigestUtils.sha256Hex(SESSION_ID));
-        assertEquals(payload.getString(Constants.IP_KEY), IP_ADDRESS);
-        assertEquals(payload.getJSONObject(Constants.BROWSER_KEY).getString(Constants.USER_AGENT_KEY), USER_AGENT);
+            mockApiKey("dummyApiKey");
+
+            JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+            assertEquals(payload.getString(Constants.LOGIN_STATUS), "$success");
+            assertEquals(payload.getString(Constants.USER_ID_KEY), DigestUtils.sha256Hex(USER_1));
+            assertEquals(payload.getString(Constants.SESSION_ID_KEY), DigestUtils.sha256Hex(SESSION_ID));
+            assertEquals(payload.getString(Constants.IP_KEY), IP_ADDRESS);
+            assertEquals(payload.getJSONObject(Constants.BROWSER_KEY).getString(Constants.USER_AGENT_KEY), USER_AGENT);
+        }
     }
 
     @Test
     public void testBuildPayloadFromStepUser() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
-        mockStepConfigWithUser(ctx, STEP_USER);
-        mockApiKey("dummyApiKey");
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
 
-        JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
-        assertEquals(payload.getString(Constants.USER_ID_KEY), DigestUtils.sha256Hex(STEP_USER));
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
+            mockStepConfigWithUser(ctx, STEP_USER);
+            mockApiKey("dummyApiKey");
+
+            JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+            assertEquals(payload.getString(Constants.USER_ID_KEY), DigestUtils.sha256Hex(STEP_USER));
+        }
     }
 
     @Test
     public void testBuildPayloadWithOverriddenCustomParams() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
-        mockStepConfigWithUser(ctx, null);
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
 
-        AuthenticatedUser authUser = mock(AuthenticatedUser.class);
-        when(authUser.getUsernameAsSubjectIdentifier(true, true)).thenReturn(USER_1);
-        JsAuthenticatedUser jsUser = mock(JsAuthenticatedUser.class);
-        when(jsUser.getWrapped()).thenReturn(authUser);
-        when(ctx.getLastAuthenticatedUser()).thenReturn(authUser);
-        when(jsContext.getMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(jsUser);
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
+            mockStepConfigWithUser(ctx, null);
 
-        mockApiKey("dummyApiKey");
+            AuthenticatedUser authUser = mock(AuthenticatedUser.class);
+            when(authUser.getUsernameAsSubjectIdentifier(true, true)).thenReturn(USER_1);
+            JsAuthenticatedUser jsUser = mock(JsAuthenticatedUser.class);
+            when(jsUser.getWrapped()).thenReturn(authUser);
+            when(ctx.getLastAuthenticatedUser()).thenReturn(authUser);
+            when(jsContext.getMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(jsUser);
 
-        Map<String, Object> params = new HashMap<>();
-        params.put(Constants.USER_ID_KEY, CUSTOM_USER_ID);
-        params.put(Constants.IP_KEY, "");
-        params.put(Constants.SESSION_ID_KEY, "");
-        params.put(Constants.LOGGING_ENABLED, true);
-        params.put(CUSTOM_KEY, CUSTOM_VALUE);
+            mockApiKey("dummyApiKey");
 
-        JSONObject payload = Util.buildPayload(jsContext, "LOGIN_FAILED", params);
-        assertEquals(payload.getString(Constants.USER_ID_KEY), CUSTOM_USER_ID);
-        assertTrue(payload.isNull(Constants.IP_KEY));
-        assertTrue(payload.isNull(Constants.SESSION_ID_KEY));
-        assertEquals(payload.getString(CUSTOM_KEY), CUSTOM_VALUE);
+            Map<String, Object> params = new HashMap<>();
+            params.put(Constants.USER_ID_KEY, CUSTOM_USER_ID);
+            params.put(Constants.IP_KEY, "");
+            params.put(Constants.SESSION_ID_KEY, "");
+            params.put(Constants.LOGGING_ENABLED, true);
+            params.put(CUSTOM_KEY, CUSTOM_VALUE);
+
+            JSONObject payload = Util.buildPayload(jsContext, "LOGIN_FAILED", params);
+            assertEquals(payload.getString(Constants.USER_ID_KEY), CUSTOM_USER_ID);
+            assertTrue(payload.isNull(Constants.IP_KEY));
+            assertTrue(payload.isNull(Constants.SESSION_ID_KEY));
+            assertEquals(payload.getString(CUSTOM_KEY), CUSTOM_VALUE);
+        }
     }
 
     @Test
     public void testBuildPayloadWithReplacedValues() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
-        mockStepConfigWithUser(ctx, null);
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
 
-        AuthenticatedUser authUser = mock(AuthenticatedUser.class);
-        when(authUser.getUsernameAsSubjectIdentifier(true, true)).thenReturn(USER_1);
-        JsAuthenticatedUser jsUser = mock(JsAuthenticatedUser.class);
-        when(jsUser.getWrapped()).thenReturn(authUser);
-        when(ctx.getLastAuthenticatedUser()).thenReturn(authUser);
-        when(jsContext.getMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(jsUser);
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
+            mockStepConfigWithUser(ctx, null);
 
-        mockApiKey("dummyApiKey");
+            AuthenticatedUser authUser = mock(AuthenticatedUser.class);
+            when(authUser.getUsernameAsSubjectIdentifier(true, true)).thenReturn(USER_1);
+            JsAuthenticatedUser jsUser = mock(JsAuthenticatedUser.class);
+            when(jsUser.getWrapped()).thenReturn(authUser);
+            when(ctx.getLastAuthenticatedUser()).thenReturn(authUser);
+            when(jsContext.getMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(jsUser);
 
-        Map<String, Object> params = new HashMap<>();
-        params.put(Constants.IP_KEY, CUSTOM_IP_ADDRESS);
-        params.put(Constants.USER_AGENT_KEY, CUSTOM_USER_AGENT);
-        params.put(CUSTOM_KEY, CUSTOM_VALUE);
+            mockApiKey("dummyApiKey");
 
-        JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", params);
-        assertEquals(payload.getString(Constants.IP_KEY), CUSTOM_IP_ADDRESS);
-        assertEquals(payload.getJSONObject(Constants.BROWSER_KEY).getString(Constants.USER_AGENT_KEY),
-                CUSTOM_USER_AGENT);
-        assertEquals(payload.getString(CUSTOM_KEY), CUSTOM_VALUE);
+            Map<String, Object> params = new HashMap<>();
+            params.put(Constants.IP_KEY, CUSTOM_IP_ADDRESS);
+            params.put(Constants.USER_AGENT_KEY, CUSTOM_USER_AGENT);
+            params.put(CUSTOM_KEY, CUSTOM_VALUE);
+
+            JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", params);
+            assertEquals(payload.getString(Constants.IP_KEY), CUSTOM_IP_ADDRESS);
+            assertEquals(payload.getJSONObject(Constants.BROWSER_KEY).getString(Constants.USER_AGENT_KEY),
+                    CUSTOM_USER_AGENT);
+            assertEquals(payload.getString(CUSTOM_KEY), CUSTOM_VALUE);
+        }
     }
 
     @Test(expectedExceptions = FrameworkException.class)
     public void testBuildPayloadMissingAuthenticatedUser() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockStepConfigWithUser(ctx, null);
-        when(ctx.getLastAuthenticatedUser()).thenReturn(null);
-        when(jsContext.hasMember(FrameworkConstants.JSAttributes.JS_LAST_LOGIN_FAILED_USER)).thenReturn(false);
-        when(jsContext.hasMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(false);
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
 
-        mockApiKey("dummyApiKey");
-        Util.buildPayload(jsContext, "LOGIN_FAILED", new HashMap<>());
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockStepConfigWithUser(ctx, null);
+            when(ctx.getLastAuthenticatedUser()).thenReturn(null);
+            when(jsContext.hasMember(FrameworkConstants.JSAttributes.JS_LAST_LOGIN_FAILED_USER)).thenReturn(false);
+            when(jsContext.hasMember(FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT)).thenReturn(false);
+
+            mockApiKey("dummyApiKey");
+            Util.buildPayload(jsContext, "LOGIN_FAILED", new HashMap<>());
+        }
     }
 
     @Test(expectedExceptions = FrameworkException.class)
     public void testBuildPayloadWithNullContextId() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        when(ctx.getContextIdentifier()).thenReturn(null);
-        mockStepConfigWithUser(ctx, USER_1);
-        mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
-        mockApiKey("dummyApiKey");
-        Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
+
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            when(ctx.getContextIdentifier()).thenReturn(null);
+            mockStepConfigWithUser(ctx, USER_1);
+            mockHttpRequest(ctx, IP_ADDRESS, USER_AGENT);
+            mockApiKey("dummyApiKey");
+            Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        }
     }
 
 
     @Test(expectedExceptions = FrameworkException.class)
     public void testBuildPayloadWithMissingApiKey() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        ConnectorConfig config = mock(ConnectorConfig.class);
-        Property p = new Property();
-        p.setName("other");
-        p.setValue("value");
-        when(config.getProperties()).thenReturn(new Property[]{p});
-        when(identityService.getConnectorWithConfigs(TENANT, Constants.CONNECTOR_NAME)).thenReturn(config);
-        Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
+
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            ConnectorConfig config = mock(ConnectorConfig.class);
+            Property p = new Property();
+            p.setName("other");
+            p.setValue("value");
+            when(config.getProperties()).thenReturn(new Property[]{p});
+            when(identityService.getConnectorWithConfigs(TENANT, Constants.CONNECTOR_NAME)).thenReturn(config);
+            Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        }
     }
 
     @Test(expectedExceptions = FrameworkException.class)
     public void testBuildPayloadWithNullConnector() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockStepConfigWithUser(ctx, USER_1);
-        when(identityService.getConnectorWithConfigs(TENANT, Constants.CONNECTOR_NAME)).thenReturn(null);
-        Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
+
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockStepConfigWithUser(ctx, USER_1);
+            when(identityService.getConnectorWithConfigs(TENANT, Constants.CONNECTOR_NAME)).thenReturn(null);
+            Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        }
     }
 
 
     @Test(expectedExceptions = FrameworkException.class)
     public void testBuildPayloadWithGovernanceException() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        when(ctx.getContextIdentifier()).thenReturn(SESSION_ID);
-        mockStepConfigWithUser(ctx, USER_1);
-        when(identityService.getConnectorWithConfigs(eq(TENANT), anyString()))
-                .thenThrow(new IdentityGovernanceException("Test exception"));
-        Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
+
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            when(ctx.getContextIdentifier()).thenReturn(SESSION_ID);
+            mockStepConfigWithUser(ctx, USER_1);
+            when(identityService.getConnectorWithConfigs(eq(TENANT), anyString()))
+                    .thenThrow(new IdentityGovernanceException("Test exception"));
+            Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+        }
     }
 
 
@@ -354,22 +411,26 @@ public class UtilTest {
     @Test
     public void testHttpServletRequestWithInvalidWrapper() throws Exception {
 
-        AuthenticationContext ctx = mock(AuthenticationContext.class);
-        when(jsContext.getWrapped()).thenReturn(ctx);
-        when(ctx.getTenantDomain()).thenReturn(TENANT);
-        mockContextIdentifier(ctx, SESSION_ID);
-        mockStepConfigWithUser(ctx, USER_1);
+        try (MockedStatic<OrganizationManagementUtil> mockedUtil = mockStatic(OrganizationManagementUtil.class)) {
+            mockedUtil.when(() -> OrganizationManagementUtil.isOrganization(TENANT)).thenReturn(false);
 
-        Object invalidRequest = new Object();
-        TransientObjectWrapper<Object> wrapper = mock(TransientObjectWrapper.class);
-        when(wrapper.getWrapped()).thenReturn(invalidRequest);
-        when(ctx.getParameter(Constants.HTTP_SERVLET_REQUEST)).thenReturn(wrapper);
+            AuthenticationContext ctx = mock(AuthenticationContext.class);
+            when(jsContext.getWrapped()).thenReturn(ctx);
+            when(ctx.getTenantDomain()).thenReturn(TENANT);
+            mockContextIdentifier(ctx, SESSION_ID);
+            mockStepConfigWithUser(ctx, USER_1);
 
-        mockApiKey("dummyApiKey");
-        JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+            Object invalidRequest = new Object();
+            TransientObjectWrapper<Object> wrapper = mock(TransientObjectWrapper.class);
+            when(wrapper.getWrapped()).thenReturn(invalidRequest);
+            when(ctx.getParameter(Constants.HTTP_SERVLET_REQUEST)).thenReturn(wrapper);
 
-        assertFalse(payload.has(Constants.IP_KEY));
-        JSONObject browser = payload.getJSONObject(Constants.BROWSER_KEY);
-        assertTrue(browser.isNull(Constants.USER_AGENT_KEY));
+            mockApiKey("dummyApiKey");
+            JSONObject payload = Util.buildPayload(jsContext, "LOGIN_SUCCESS", new HashMap<>());
+
+            assertFalse(payload.has(Constants.IP_KEY));
+            JSONObject browser = payload.getJSONObject(Constants.BROWSER_KEY);
+            assertTrue(browser.isNull(Constants.USER_AGENT_KEY));
+        }
     }
 }
