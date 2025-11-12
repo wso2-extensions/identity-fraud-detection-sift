@@ -114,8 +114,7 @@ public class PublishLoginToSiftFunctionImplTest {
         Assert.assertTrue(logOutput.toString().contains("Successfully published login event information to Sift."));
     }
 
-    @Test(expectedExceptions = FrameworkException.class,
-            expectedExceptionsMessageRegExp = ".*Error occurred while publishing login event information to Sift.*")
+    @Test
     public void testPublishLoginEventToSiftSiftError() throws Exception {
 
         // Mock error response from SiftFraudDetector
@@ -131,5 +130,9 @@ public class PublishLoginToSiftFunctionImplTest {
         when(authContext.getTenantDomain()).thenReturn("carbon.super");
 
         publishLoginToSiftFunction.publishLoginEventToSift(jsContext, "LOGIN_SUCCESS", new HashMap<String, Object>());
+
+        // Verify that error is logged when status is FAILURE
+        Assert.assertTrue(logOutput.toString().contains("Failed to publish login event information to Sift. Status: " +
+                FraudDetectionConstants.ExecutionStatus.FAILURE));
     }
 }

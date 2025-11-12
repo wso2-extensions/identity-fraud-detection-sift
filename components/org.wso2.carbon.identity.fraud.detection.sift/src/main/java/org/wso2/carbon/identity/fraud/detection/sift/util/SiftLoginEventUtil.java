@@ -321,7 +321,9 @@ public class SiftLoginEventUtil {
                 (String) context.getAnalyticsData(CURRENT_AUTHENTICATOR_ERROR_CODE) : null;
 
         if (failedUser == null) {
-            // Cannot resolve the user to get the account state claims.
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Could not resolve the failed user for the failed login attempt.");
+            }
             return null;
         }
 
@@ -338,15 +340,17 @@ public class SiftLoginEventUtil {
         String siftFailureReason = null;
         try {
             String accountLockClaimValue = resolveUserClaim(properties, ACCOUNT_LOCK, true);
-            String accountDisableClaimValue = resolveUserClaim(properties, ACCOUNT_DISABLED, true);
             if (UserCoreConstants.ErrorCode.INVALID_CREDENTIAL.equals(currentErrorCode)) {
                 // In this situation, either the password is incorrect or the account don't exist.
                 siftFailureReason = LoginFailureReason.WRONG_CREDENTIALS.getValue();
             } else {
                 if (Boolean.parseBoolean(accountLockClaimValue)) {
                     siftFailureReason = LoginFailureReason.ACCOUNT_SUSPENDED.getValue();
-                } else if (Boolean.parseBoolean(accountDisableClaimValue)) {
-                    siftFailureReason = LoginFailureReason.ACCOUNT_DISABLED.getValue();
+                } else {
+                    String accountDisableClaimValue = resolveUserClaim(properties, ACCOUNT_DISABLED, true);
+                    if (Boolean.parseBoolean(accountDisableClaimValue)) {
+                        siftFailureReason = LoginFailureReason.ACCOUNT_DISABLED.getValue();
+                    }
                 }
             }
         } catch (IdentityFraudDetectionRequestException e) {

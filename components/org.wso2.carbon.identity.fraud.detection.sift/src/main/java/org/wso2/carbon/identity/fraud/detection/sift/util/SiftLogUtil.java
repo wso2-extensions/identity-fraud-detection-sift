@@ -22,6 +22,8 @@ import org.json.JSONObject;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.EMAIL_KEY;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.IP_KEY;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.NAME_KEY;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PHONE_KEY;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SMS_KEY;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USERNAME_KEY;
@@ -54,6 +56,8 @@ public class SiftLogUtil {
         maskMobileNumber(maskedPayload);
         maskVerifiedValue(maskedPayload);
         maskUsername(maskedPayload);
+        maskName(maskedPayload);
+        maskIPAddress(maskedPayload);
         return maskedPayload.toString();
     }
 
@@ -212,5 +216,67 @@ public class SiftLogUtil {
             return;
         }
         maskedPayload.put(USERNAME_KEY, getDefaultMaskedValue(username));
+    }
+
+    /**
+     * Mask the name in the payload.
+     *
+     * @param maskedPayload Payload to be masked.
+     */
+    private static void maskName(JSONObject maskedPayload) {
+
+        String fullName = maskedPayload.has(NAME_KEY) ? maskedPayload.getString(NAME_KEY) : null;
+        if (StringUtils.isEmpty(fullName)) {
+            return;
+        }
+        maskedPayload.put(NAME_KEY, getDefaultMaskedValue(fullName));
+    }
+
+    /**
+     * Mask the IP address in the payload.
+     *
+     * @param maskedPayload Payload to be masked.
+     */
+    private static void maskIPAddress(JSONObject maskedPayload) {
+
+        String remoteAddress = maskedPayload.has(IP_KEY) ? maskedPayload.getString(IP_KEY) : null;
+        if (StringUtils.isEmpty(remoteAddress)) {
+            return;
+        }
+        maskedPayload.put(IP_KEY, getMaskedIPAddress(remoteAddress));
+
+    }
+
+    /**
+     * Get the masked IP address.
+     * For IPv4: masks the last two octets (e.g., 192.168.*.*)
+     * For IPv6: masks the last 64 bits (e.g., 2001:0db8:85a3:0000:****:****:****:****)
+     *
+     * @param ipAddress IP address to be masked.
+     * @return Masked IP address.
+     */
+    private static String getMaskedIPAddress(String ipAddress) {
+
+        if (ipAddress.contains(":")) {
+            // IPv6 address
+            String[] parts = ipAddress.split(":");
+            int visibleParts = Math.min(4, parts.length);
+            StringBuilder maskedIP = new StringBuilder();
+            for (int i = 0; i < visibleParts; i++) {
+                maskedIP.append(parts[i]);
+                if (i < visibleParts - 1) {
+                    maskedIP.append(":");
+                }
+            }
+            maskedIP.append(":****:****:****:****");
+            return maskedIP.toString();
+        } else {
+            // IPv4 address
+            String[] octets = ipAddress.split("\\.");
+            if (octets.length == 4) {
+                return octets[0] + "." + octets[1] + ".*.*";
+            }
+            return getDefaultMaskedValue(ipAddress);
+        }
     }
 }

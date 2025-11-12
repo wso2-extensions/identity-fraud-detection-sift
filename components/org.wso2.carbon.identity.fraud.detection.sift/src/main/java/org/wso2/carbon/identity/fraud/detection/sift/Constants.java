@@ -66,6 +66,7 @@ public class Constants {
     public static final String BROWSER_KEY = "$browser";
     public static final String USER_AGENT_KEY = "$user_agent";
     public static final String USERNAME_KEY = "$username";
+    public static final String NAME_KEY = "$name";
     public static final String VERIFIED_VALUE_KEY = "$verified_value";
     public static final String VERIFICATION_TYPE_KEY = "$verification_type";
     public static final String EMAIL_KEY = "$email";

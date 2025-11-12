@@ -66,10 +66,12 @@ public class PublishLoginToSiftFunctionImpl implements PublishLoginToSiftFunctio
         IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
         SiftFraudDetectorResponseDTO responseDTO =
                 (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
-        if (FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
-            LOG.info("Successfully published login event information to Sift.");
-        } else {
-            throw new FrameworkException("Error occurred while publishing login event information to Sift.");
+        if (LOG.isDebugEnabled()) {
+            if (FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+                LOG.info("Successfully published login event information to Sift.");
+            } else {
+                LOG.error("Failed to publish login event information to Sift. Status: " + responseDTO.getStatus());
+            }
         }
     }
 }

@@ -22,12 +22,16 @@ import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdatePasswordFieldSet;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
+import org.wso2.carbon.identity.recovery.IdentityRecoveryClientException;
+import org.wso2.carbon.identity.recovery.RecoveryScenarios;
 import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
@@ -65,6 +69,8 @@ import static org.wso2.carbon.identity.recovery.RecoveryScenarios.NOTIFICATION_B
  * Utility class for handling Sift update password events.
  */
 public class SiftUpdatePasswordEventUtil {
+
+    private static final Log LOG = LogFactory.getLog(SiftUpdatePasswordEventUtil.class);
 
     /**
      * Builds the update password event payload for Sift.
@@ -180,38 +186,54 @@ public class SiftUpdatePasswordEventUtil {
     private static String resolveStatus(SiftFraudDetectorRequestDTO requestDTO)
             throws IdentityFraudDetectionRequestException {
 
+        Map<String, Object> properties = requestDTO.getProperties();
+
         if (POST_UPDATE_PASSWORD.equals(requestDTO.getEventName())) {
 
-            // This section covers the post password update scenarios.
-            String recoveryScenario = (String) requestDTO.getProperties().get(RECOVERY_SCENARIO);
-            if (ASK_PASSWORD.name().equals(recoveryScenario)) {
-                // Ask password flow where admin created the user and user set the password successfully.
-                return SUCCESS.getValue();
-            } else if (ADMIN_FORCED_PASSWORD_RESET_VIA_EMAIL_LINK.name().equals(recoveryScenario)
-                    || ADMIN_FORCED_PASSWORD_RESET_VIA_OTP.name().equals(recoveryScenario)) {
-                // Admin forced password reset via email link scenario and user set the password successfully.
-                return SUCCESS.getValue();
-            } else if (NOTIFICATION_BASED_PW_RECOVERY.name().equals(recoveryScenario)) {
-                // This is a forgot password scenario where user initiates the password reset flow.
-                return SUCCESS.getValue();
+            String recoveryScenario = properties.containsKey(RECOVERY_SCENARIO) ?
+                    (String) properties.get(RECOVERY_SCENARIO) : null;
+            if (StringUtils.isNotEmpty(recoveryScenario)) {
+                try {
+                    RecoveryScenarios scenarioEnum = RecoveryScenarios.getRecoveryScenario(recoveryScenario);
+                    switch (scenarioEnum) {
+                        case ASK_PASSWORD:
+                        case ADMIN_FORCED_PASSWORD_RESET_VIA_EMAIL_LINK:
+                        case ADMIN_FORCED_PASSWORD_RESET_VIA_OTP:
+                        case NOTIFICATION_BASED_PW_RECOVERY:
+                            return SUCCESS.getValue();
+                        default:
+                            break;
+                    }
+                } catch (IdentityRecoveryClientException e) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Invalid recovery scenario: " + recoveryScenario, e);
+                    }
+                }
             }
 
-            String scenario = (String) requestDTO.getProperties().get(SCENARIO);
-            if (POST_CREDENTIAL_UPDATE_BY_ADMIN.equals(scenario)) {
-                // Admin forcefully updates the password of the user.
-                return SUCCESS.getValue();
-            } else if (POST_CREDENTIAL_UPDATE_BY_USER.equals(scenario)) {
-                // User updates their own password.
-                return SUCCESS.getValue();
+            String scenario = properties.containsKey(SCENARIO) ? (String) properties.get(SCENARIO) : null;
+            if (StringUtils.isNotEmpty(scenario)) {
+                switch (scenario) {
+                    case POST_CREDENTIAL_UPDATE_BY_ADMIN:
+                    case POST_CREDENTIAL_UPDATE_BY_USER:
+                        return SUCCESS.getValue();
+                    default:
+                        break;
+                }
             }
         }
 
-        // This section covers the password update notification scenarios.
-        String internalEventName = (String) requestDTO.getProperties().get(INTERNAL_EVENT_NAME);
-        if (POST_ADD_USER_WITH_ASK_PASSWORD.equals(internalEventName)
-                || POST_FORCE_PASSWORD_RESET_BY_ADMIN.equals(internalEventName)
-                || POST_SEND_RECOVERY_NOTIFICATION.equals(internalEventName)) {
-            return PENDING.getValue();
+        String internalEventName = properties.containsKey(INTERNAL_EVENT_NAME) ?
+                (String) properties.get(INTERNAL_EVENT_NAME) : null;
+        if (StringUtils.isNotEmpty(internalEventName)) {
+            switch (internalEventName) {
+                case POST_ADD_USER_WITH_ASK_PASSWORD:
+                case POST_FORCE_PASSWORD_RESET_BY_ADMIN:
+                case POST_SEND_RECOVERY_NOTIFICATION:
+                    return PENDING.getValue();
+                default:
+                    break;
+            }
         }
 
         throw new IdentityFraudDetectionRequestException("Cannot resolve status for update credential event.");

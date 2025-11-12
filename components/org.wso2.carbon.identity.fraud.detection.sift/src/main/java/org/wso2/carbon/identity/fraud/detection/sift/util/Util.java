@@ -448,7 +448,9 @@ public class Util {
         try {
             return getHashedUserId(authenticationContext);
         } catch (FrameworkException e) {
-            LOG.debug("Unable to get the user ID from the step configuration.", e);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Unable to get the user ID from the step configuration.", e);
+            }
         }
 
         String memberKey = JS_CURRENT_KNOWN_SUBJECT;
@@ -517,7 +519,9 @@ public class Util {
 
         try {
             if (!isAllowDeviceMetadataInPayload(context.getTenantDomain())) {
-                LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                }
                 return null;
             }
         } catch (IdentityFraudDetectionRequestException e) {
@@ -558,7 +562,9 @@ public class Util {
 
         try {
             if (!isAllowDeviceMetadataInPayload(context.getTenantDomain())) {
-                LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+                }
                 return null;
             }
         } catch (IdentityFraudDetectionRequestException e) {

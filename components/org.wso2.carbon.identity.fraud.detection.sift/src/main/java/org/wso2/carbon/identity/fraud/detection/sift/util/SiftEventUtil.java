@@ -17,6 +17,7 @@
  */
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
+import com.siftscience.model.EventResponseBody;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -26,14 +27,16 @@ import org.wso2.carbon.identity.application.authentication.framework.util.Framew
 import org.wso2.carbon.identity.application.common.model.User;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
+import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.FraudDetectionConfigServerException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
+import org.wso2.carbon.identity.fraud.detection.core.exception.UnsupportedFraudDetectionEventException;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorRequestDTO;
 import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.core.util.EventUtil;
-import org.wso2.carbon.identity.fraud.detection.sift.exception.SiftUnsupportedEventException;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
+import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorResponseDTO;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.UserStoreManager;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
@@ -68,11 +71,11 @@ public class SiftEventUtil {
      *
      * @param requestDTO Sift fraud detector request DTO.
      * @return Sift event payload as a JSON string.
-     * @throws IdentityFraudDetectionRequestException If an error occurs while building the payload.
-     * @throws SiftUnsupportedEventException        If the event name is not supported by Sift.
+     * @throws IdentityFraudDetectionRequestException   If an error occurs while building the payload.
+     * @throws UnsupportedFraudDetectionEventException  If the event name is not supported by Sift.
      */
     public static String buildSiftEventPayload(SiftFraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectionRequestException, SiftUnsupportedEventException {
+            throws IdentityFraudDetectionRequestException, UnsupportedFraudDetectionEventException {
 
         switch (requestDTO.getEventName()) {
             case LOGIN:
@@ -93,7 +96,7 @@ public class SiftEventUtil {
             case POST_UPDATE_USER_PROFILE:
                 return SiftUserProfileUpdateEventUtil.handlePostUserProfileUpdateEventPayload(requestDTO);
             default:
-                throw new SiftUnsupportedEventException("Unsupported event name by Sift: "
+                throw new UnsupportedFraudDetectionEventException("Unsupported event name by Sift: "
                         + requestDTO.getEventName());
         }
     }
@@ -105,39 +108,22 @@ public class SiftEventUtil {
      * @param requestDTO      Sift fraud detector request DTO.
      * @return Fraud detector response DTO.
      * @throws IdentityFraudDetectionResponseException If an error occurs while handling the response.
-     * @throws SiftUnsupportedEventException         If the event name is not supported by Sift.
      */
     public static FraudDetectorResponseDTO handleResponse(String responseContent, FraudDetectorRequestDTO requestDTO)
-            throws IdentityFraudDetectionResponseException, SiftUnsupportedEventException {
+            throws IdentityFraudDetectionResponseException {
 
-        switch (requestDTO.getEventName()) {
-            case LOGIN:
-                return SiftLoginEventUtil.handleLoginResponse(responseContent,
-                        (SiftFraudDetectorRequestDTO) requestDTO);
-            case LOGOUT:
-                return SiftLogoutEventUtil.handleLogoutResponse(responseContent,
-                        (SiftFraudDetectorRequestDTO) requestDTO);
-            case POST_USER_CREATION:
-                return SiftUserRegistrationEventUtil.handlePostUserRegistrationResponse(responseContent,
-                        (SiftFraudDetectorRequestDTO) requestDTO);
-            case PRE_UPDATE_PASSWORD_NOTIFICATION:
-            case POST_UPDATE_PASSWORD:
-                return SiftUpdatePasswordEventUtil.handleUpdatePasswordResponse(responseContent,
-                        (SiftFraudDetectorRequestDTO) requestDTO);
-            case SELF_REGISTRATION_VERIFICATION_NOTIFICATION:
-            case POST_SELF_REGISTRATION_VERIFICATION:
-            case USER_ATTRIBUTE_UPDATE_VERIFICATION_NOTIFICATION:
-            case POST_USER_ATTRIBUTE_UPDATE_VERIFICATION:
-            case AUTHENTICATION_STEP_NOTIFICATION_VERIFICATION:
-                return SiftVerificationEventUtil.handleVerificationResponse(responseContent,
-                        (SiftFraudDetectorRequestDTO) requestDTO);
-            case POST_UPDATE_USER_PROFILE:
-                return SiftUserProfileUpdateEventUtil.handlePostUserProfileUpdateResponse(responseContent,
-                        (SiftFraudDetectorRequestDTO) requestDTO);
-            default:
-                throw new SiftUnsupportedEventException(requestDTO.getEventName()
-                        + " event cannot be handled by Sift.");
+        FraudDetectionConstants.FraudDetectionEvents eventName = requestDTO.getEventName();
+        if (FraudDetectionConstants.FraudDetectionEvents.LOGIN.equals(requestDTO.getEventName())) {
+            return SiftLoginEventUtil.handleLoginResponse(responseContent,
+                    (SiftFraudDetectorRequestDTO) requestDTO);
         }
+
+        EventResponseBody responseBody = EventResponseBody.fromJson(responseContent);
+        if (responseBody.getStatus() != 0) {
+            throw new IdentityFraudDetectionResponseException("Error occurred while publishing event to Sift. Returned "
+                    + "Sift status code: " + responseBody.getStatus() + " for event: " + eventName.name());
+        }
+        return new SiftFraudDetectorResponseDTO(FraudDetectionConstants.ExecutionStatus.SUCCESS, eventName);
     }
 
     /**
@@ -233,8 +219,10 @@ public class SiftEventUtil {
         if (mobileNumber.matches(E164_REGEX)) {
             return mobileNumber;
         } else {
-            LOG.debug("Mobile number: " + mobileNumber + " is not in E.164 format. Hence not " +
-                    "adding to the payload.");
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Mobile number: " + mobileNumber + " is not in E.164 format. Hence not " +
+                        "adding to the payload.");
+            }
             return null;
         }
     }
@@ -269,7 +257,9 @@ public class SiftEventUtil {
         String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
                 (String) properties.get(TENANT_DOMAIN) : null;
         if (!isIdentityClaim && !isAllowUserInfoInPayload(tenantDomain)) {
-            LOG.debug("Cannot resolve claim: " + claimUri + " as user info is not allowed in payload.");
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Cannot resolve claim: " + claimUri + " as user info is not allowed in payload.");
+            }
             return null;
         }
 
@@ -288,7 +278,9 @@ public class SiftEventUtil {
             }
             return claimValue;
         } catch (IdentityFraudDetectionRequestException e) {
-            LOG.debug("Cannot resolve claim: " + claimUri + " from the user store.", e);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Cannot resolve claim: " + claimUri + " from the user store.", e);
+            }
             return null;
         } catch (UserStoreException e) {
             if (e.getMessage().contains(ERROR_CODE_NON_EXISTING_USER.getCode())) {
@@ -357,13 +349,13 @@ public class SiftEventUtil {
         String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
                 (String) properties.get(TENANT_DOMAIN) : null;
         if (!isAllowDeviceMetadataInPayload(tenantDomain)) {
-            LOG.debug("Cannot resolve user agent as device metadata is not allowed in payload.");
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("User Agent information is not allowed in payload for tenant: " + tenantDomain);
+            }
             return null;
         }
 
-        if (IdentityUtil.threadLocalProperties.get().containsKey("User-Agent-Of-User-Portal")) {
-            return (String) IdentityUtil.threadLocalProperties.get().get("User-Agent-Of-User-Portal");
-        } else if (IdentityUtil.threadLocalProperties.get().containsKey(USER_AGENT_HEADER)) {
+        if (IdentityUtil.threadLocalProperties.get().containsKey(USER_AGENT_HEADER)) {
             return (String) IdentityUtil.threadLocalProperties.get().get(USER_AGENT_HEADER);
         } else {
             return null;
@@ -383,7 +375,9 @@ public class SiftEventUtil {
         String tenantDomain = properties.get(TENANT_DOMAIN) != null ?
                 (String) properties.get(TENANT_DOMAIN) : null;
         if (!isAllowDeviceMetadataInPayload(tenantDomain)) {
-            LOG.debug("Cannot resolve remote address as device metadata is not allowed in payload.");
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Remote address information is not allowed in payload for tenant: " + tenantDomain);
+            }
             return null;
         }
 
