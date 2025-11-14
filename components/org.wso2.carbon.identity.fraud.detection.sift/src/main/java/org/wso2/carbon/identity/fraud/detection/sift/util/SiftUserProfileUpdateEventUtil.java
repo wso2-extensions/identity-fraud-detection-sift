@@ -18,7 +18,6 @@
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
-import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdateAccountFieldSet;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
@@ -38,6 +37,7 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_PROFILE_UPDATED_BY_ADMIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
@@ -74,7 +74,7 @@ public class SiftUserProfileUpdateEventUtil {
                     .setVerificationPhoneNumber(validatedMobileNumber)
                     .setPhone(validatedMobileNumber)
                     .setName(resolveFullName(properties))
-                    .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
+                    .setBrowser(resolveBrowser(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
                     .setCustomField(USER_PROFILE_UPDATED_BY_ADMIN, isProfileUpdateByAdmin(properties))
                     .setCustomField(USER_UUID, resolveUserUUID(properties));
