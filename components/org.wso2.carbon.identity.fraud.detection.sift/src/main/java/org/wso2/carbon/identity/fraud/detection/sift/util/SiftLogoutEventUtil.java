@@ -18,7 +18,6 @@
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
-import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.LogoutFieldSet;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -40,6 +39,8 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.LOGOUT_TRIGGERED_FROM_APPLICATION;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.setAPIKey;
 
@@ -66,7 +67,7 @@ public class SiftLogoutEventUtil {
         try {
             LogoutFieldSet logoutFieldSet = new LogoutFieldSet()
                     .setUserId(resolveUserId(sessionContext))
-                    .setBrowser(new Browser().setUserAgent(SiftEventUtil.resolveUserAgent(properties)))
+                    .setBrowser(resolveBrowser(resolveUserAgent(properties)))
                     .setIp(SiftEventUtil.resolveRemoteAddress(properties))
                     .setCustomField(LOGOUT_TRIGGERED_FROM_APPLICATION, isLogoutTriggeredFromApplication)
                     .setCustomField(USER_UUID, resolveUserUUID(properties));

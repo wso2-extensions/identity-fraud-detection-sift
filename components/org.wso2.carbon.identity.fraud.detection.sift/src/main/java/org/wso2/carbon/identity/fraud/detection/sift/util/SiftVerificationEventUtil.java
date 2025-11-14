@@ -18,7 +18,6 @@
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
-import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.VerificationFieldSet;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -66,6 +65,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SiftEventT
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SiftEventType.USER_LOGIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SiftEventType.USER_REGISTRATION;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
@@ -107,7 +107,7 @@ public class SiftVerificationEventUtil {
                     .setUserId(resolveUserId(properties))
                     .setSessionId(sessionId)
                     .setStatus(resolveStatus(event, properties))
-                    .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
+                    .setBrowser(resolveBrowser(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
                     .setReason(resolveReason(event))
                     .setVerifiedEvent(verifiedEvent)
