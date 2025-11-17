@@ -32,6 +32,13 @@
       "tagName": "v3.0.1",
       "products": [
         "IS 7.0.0"
+      ],
+      "isHidden": true
+    },
+    {
+      "tagName": "v3.0.2",
+      "products": [
+        "IS 7.0.0"
       ]
     }
   ]
