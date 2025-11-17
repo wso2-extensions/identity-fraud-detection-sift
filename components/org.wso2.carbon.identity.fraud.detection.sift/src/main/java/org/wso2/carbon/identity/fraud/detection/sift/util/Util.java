@@ -33,6 +33,7 @@ import org.wso2.carbon.identity.application.authentication.framework.context.Aut
 import org.wso2.carbon.identity.application.authentication.framework.context.TransientObjectWrapper;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.common.model.Property;
+import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
@@ -47,6 +48,7 @@ import org.wso2.carbon.identity.organization.management.service.util.Organizatio
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 
 import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.JSAttributes.JS_CURRENT_KNOWN_SUBJECT;
@@ -577,9 +579,9 @@ public class Util {
 
         Object httpServletRequest =
                 ((TransientObjectWrapper<?>) context.getParameter(HTTP_SERVLET_REQUEST)).getWrapped();
-        if (httpServletRequest instanceof HttpServletRequestWrapper) {
-            HttpServletRequestWrapper authenticationFrameworkWrapper = (HttpServletRequestWrapper) httpServletRequest;
-            return authenticationFrameworkWrapper.getRemoteAddr();
+        if (httpServletRequest instanceof HttpServletRequest) {
+            HttpServletRequest request = (HttpServletRequest) httpServletRequest;
+            return IdentityUtil.getClientIpAddress(request);
         }
         return null;
     }

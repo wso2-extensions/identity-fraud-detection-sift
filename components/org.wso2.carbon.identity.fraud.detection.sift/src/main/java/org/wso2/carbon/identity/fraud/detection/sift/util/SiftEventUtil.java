@@ -17,11 +17,14 @@
  */
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
+import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext;
+import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.exception.UserSessionException;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.model.User;
@@ -44,6 +47,11 @@ import org.wso2.carbon.user.core.util.UserCoreUtil;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
+
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.CONTEXT;
+import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.REQUEST;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_CLAIMS;
@@ -51,8 +59,10 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_NAME;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_DOMAIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_MANAGER;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.IP_KEY;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.REMOTE_ADDRESS;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_HEADER;
+import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_KEY;
 import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.GIVEN_NAME;
 import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.SURNAME;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
@@ -355,11 +365,37 @@ public class SiftEventUtil {
             return null;
         }
 
+        if (properties.containsKey(REQUEST)) {
+            Object requestObj = properties.get(REQUEST);
+            if (requestObj instanceof HttpServletRequestWrapper) {
+                HttpServletRequestWrapper httpServletRequestWrapper = (HttpServletRequestWrapper) requestObj;
+                return httpServletRequestWrapper.getHeader(USER_AGENT_HEADER);
+            }
+        }
+
+        if (properties.containsKey(CONTEXT)) {
+            Object contextObj = properties.get(CONTEXT);
+            if (contextObj instanceof AuthenticationContext) {
+                AuthenticationContext context = (AuthenticationContext) contextObj;
+                try {
+                    return Util.resolvePayloadData(USER_AGENT_KEY, context);
+                } catch (FrameworkException e) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Error while resolving user agent from the authentication context.", e);
+                    }
+                }
+            }
+        }
+
         if (IdentityUtil.threadLocalProperties.get().containsKey(USER_AGENT_HEADER)) {
             return (String) IdentityUtil.threadLocalProperties.get().get(USER_AGENT_HEADER);
-        } else {
-            return null;
         }
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("User agent could not be resolved from the event properties or thread local.");
+        }
+
+        return null;
     }
 
     /**
@@ -381,12 +417,54 @@ public class SiftEventUtil {
             return null;
         }
 
-        String ipAddress = (String) IdentityUtil.threadLocalProperties.get().get(REMOTE_ADDRESS);
-        if (StringUtils.isNotEmpty(ipAddress)) {
-            return ipAddress;
-        } else {
+        if (properties.containsKey(REQUEST)) {
+            Object requestObj = properties.get(REQUEST);
+            if (requestObj instanceof HttpServletRequest) {
+                HttpServletRequest request = (HttpServletRequest) requestObj;
+                String ipAddress = IdentityUtil.getClientIpAddress(request);
+                if (StringUtils.isNotEmpty(ipAddress)) {
+                    return ipAddress;
+                }
+            }
+        }
+
+        if (properties.containsKey(CONTEXT)) {
+            Object contextObj = properties.get(CONTEXT);
+            if (contextObj instanceof AuthenticationContext) {
+                AuthenticationContext context = (AuthenticationContext) contextObj;
+                try {
+                    return Util.resolvePayloadData(IP_KEY, context);
+                } catch (FrameworkException e) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Error while resolving remote address from the authentication context.", e);
+                    }
+                }
+            }
+        }
+
+        if (IdentityUtil.threadLocalProperties.get().containsKey(REMOTE_ADDRESS)) {
+            return (String) IdentityUtil.threadLocalProperties.get().get(REMOTE_ADDRESS);
+        }
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Remote address could not be resolved from the event properties or thread local.");
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolves the Browser object from the user agent string.
+     *
+     * @param userAgent User agent string.
+     * @return Resolved Browser object.
+     */
+    protected static Browser resolveBrowser(String userAgent) {
+
+        if (StringUtils.isEmpty(userAgent)) {
             return null;
         }
+        return new Browser().setUserAgent(userAgent);
     }
 
     /**

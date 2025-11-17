@@ -19,7 +19,6 @@ package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.AbuseScore;
-import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.LoginFieldSet;
 import com.siftscience.model.ScoreResponse;
@@ -69,6 +68,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_DECIS
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_SESSION;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USERNAME_USER_INPUT;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.Util.getLoginStatus;
@@ -128,13 +128,14 @@ public class SiftLoginEventUtil {
             LoginFieldSet loginFieldSet = new LoginFieldSet()
                     .setLoginStatus(loginStatus)
                     .setUserId(resolvePayloadData(Constants.USER_ID_KEY, context))
-                    .setBrowser(new Browser().setUserAgent(resolvePayloadData(Constants.USER_AGENT_KEY, context)))
+                    .setBrowser(resolveBrowser(resolvePayloadData(Constants.USER_AGENT_KEY, context)))
                     .setIp(resolvePayloadData(Constants.IP_KEY, context))
                     .setSessionId(resolvePayloadData(Constants.SESSION_ID_KEY, context))
                     .setFailureReason(resolveFailureReason(properties, context))
                     .setUsername(resolveUsername(properties))
                     .setUserEmail(resolveUserClaim(properties, EMAIL_ADDRESS))
-                    .setVerificationPhoneNumber(validateMobileNumberFormat(resolveUserClaim(properties, MOBILE)));
+                    .setVerificationPhoneNumber(validateMobileNumberFormat(resolveUserClaim(properties, MOBILE)))
+                    .setCustomField(USER_UUID, resolveUserUUID(properties));
             Map<String, Object> passedCustomParams = properties.get(CUSTOM_PARAMS) != null ?
                     (Map<String, Object>) properties.get(CUSTOM_PARAMS) : null;
             processDefaultParameters(loginFieldSet, passedCustomParams);
@@ -166,7 +167,7 @@ public class SiftLoginEventUtil {
             LoginFieldSet loginFieldSet = new LoginFieldSet()
                     .setLoginStatus(resolveLoginStatus(properties))
                     .setUserId(resolveUserId(properties))
-                    .setBrowser(new Browser().setUserAgent(resolvePayloadData(Constants.USER_AGENT_KEY, context)))
+                    .setBrowser(resolveBrowser(resolvePayloadData(Constants.USER_AGENT_KEY, context)))
                     .setIp(resolvePayloadData(Constants.IP_KEY, context))
                     .setSessionId(resolvePayloadData(Constants.SESSION_ID_KEY, context))
                     .setFailureReason(resolveFailureReason(properties, context))
