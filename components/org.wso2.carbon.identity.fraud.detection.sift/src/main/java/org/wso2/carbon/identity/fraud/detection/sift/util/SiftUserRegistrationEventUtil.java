@@ -18,7 +18,6 @@
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
-import com.siftscience.model.Browser;
 import com.siftscience.model.CreateAccountFieldSet;
 import com.siftscience.model.EventResponseBody;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
@@ -36,6 +35,7 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_CREATED_BY_ADMIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_SELF_REGISTRATION_FLOW;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
@@ -68,7 +68,7 @@ public class SiftUserRegistrationEventUtil {
                     resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.MOBILE));
             CreateAccountFieldSet fieldSet = new CreateAccountFieldSet()
                     .setUserId(resolveUserId(properties))
-                    .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
+                    .setBrowser(resolveBrowser(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
                     .setUserEmail(resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS))
                     .setPhone(validatedMobileNumber)

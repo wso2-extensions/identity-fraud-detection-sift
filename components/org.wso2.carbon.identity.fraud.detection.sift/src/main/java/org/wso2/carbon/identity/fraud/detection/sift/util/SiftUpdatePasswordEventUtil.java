@@ -18,7 +18,6 @@
 package org.wso2.carbon.identity.fraud.detection.sift.util;
 
 import com.siftscience.exception.InvalidFieldException;
-import com.siftscience.model.Browser;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdatePasswordFieldSet;
 import org.apache.commons.lang.StringUtils;
@@ -53,6 +52,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.PasswordUp
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.ProgressStatus.PENDING;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.ProgressStatus.SUCCESS;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveRemoteAddress;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAgent;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserAttribute;
@@ -90,7 +90,7 @@ public class SiftUpdatePasswordEventUtil {
                     .setUserId(resolveUserId(properties))
                     .setReason(resolveReason(requestDTO))
                     .setStatus(resolveStatus(requestDTO))
-                    .setBrowser(new Browser().setUserAgent(resolveUserAgent(properties)))
+                    .setBrowser(resolveBrowser(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
                     .setUserEmail(resolveUserAttribute(properties, UserCoreConstants.ClaimTypeURIs.EMAIL_ADDRESS))
                     .setVerificationPhoneNumber(validateMobileNumberFormat(
