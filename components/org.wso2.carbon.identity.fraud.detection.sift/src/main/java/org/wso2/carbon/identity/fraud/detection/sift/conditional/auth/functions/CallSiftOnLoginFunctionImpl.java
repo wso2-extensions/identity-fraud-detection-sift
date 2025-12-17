@@ -25,6 +25,7 @@ import org.wso2.carbon.identity.application.authentication.framework.config.mode
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
@@ -65,12 +66,25 @@ public class CallSiftOnLoginFunctionImpl implements CallSiftOnLoginFunction {
         requestDTO.setReturnRiskScore(true);
 
         IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
-        SiftFraudDetectorResponseDTO responseDTO
-                = (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
-        double riskScore = responseDTO.getRiskScore();
-        if (isLoggingEnabled) {
-            LOG.info("Sift risk score: " + riskScore);
+        FraudDetectorResponseDTO responseDTO = siftFraudDetector.publishRequest(requestDTO);
+        if (responseDTO instanceof SiftFraudDetectorResponseDTO) {
+            double riskScore = ((SiftFraudDetectorResponseDTO) responseDTO).getRiskScore();
+            if (isLoggingEnabled) {
+                LOG.info("Sift risk score: " + riskScore);
+            }
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Successfully retrieved risk score from Sift");
+            }
+            return riskScore;
         }
-        return riskScore;
+        if (!FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+            if (isLoggingEnabled) {
+                LOG.error("Failed to retrieve risk score from Sift. Status: " + responseDTO.getStatus());
+            }
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Failed to retrieve risk score from Sift. Status: " + responseDTO.getStatus());
+            }
+        }
+        return -1;
     }
 }
