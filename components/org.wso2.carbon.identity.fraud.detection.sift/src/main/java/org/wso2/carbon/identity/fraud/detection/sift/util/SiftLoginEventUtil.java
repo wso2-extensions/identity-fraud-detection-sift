@@ -309,7 +309,7 @@ public class SiftLoginEventUtil {
         }
 
         AuthenticatedUser failedUser;
-        boolean fromInternalEvent = !properties.containsKey(INTERNAL_EVENT_NAME);
+        boolean fromInternalEvent = properties.containsKey(INTERNAL_EVENT_NAME);
         if (fromInternalEvent) {
             Map<String, Object> params = (Map<String, Object>) properties.get(PARAMS);
             failedUser = params.containsKey(USER) ? new AuthenticatedUser((User) params.get(USER)) : null;

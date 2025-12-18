@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.identity.fraud.detection.sift.conditional.auth.functions;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.graalvm.polyglot.HostAccess;
@@ -25,6 +26,7 @@ import org.wso2.carbon.identity.application.authentication.framework.config.mode
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
@@ -65,13 +67,27 @@ public class GetSiftWorkflowDecisionFunctionImpl implements GetSiftWorkflowDecis
         requestDTO.setReturnWorkflowDecision(true);
 
         IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
-        SiftFraudDetectorResponseDTO responseDTO
-                = (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
-        String workflowDecision = responseDTO.getWorkflowDecision();
-        if (isLoggingEnabled) {
-            LOG.info("Sift workflow decision id: " + workflowDecision);
+        FraudDetectorResponseDTO responseDTO = siftFraudDetector.publishRequest(requestDTO);
+        if (responseDTO instanceof SiftFraudDetectorResponseDTO) {
+            SiftFraudDetectorResponseDTO siftResponseDTO = (SiftFraudDetectorResponseDTO) responseDTO;
+            String workflowDecision = siftResponseDTO.getWorkflowDecision();
+            if (isLoggingEnabled) {
+                LOG.info("Sift workflow decision id: " + workflowDecision);
+            }
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Successfully retrieved workflow decision from Sift");
+            }
+            return workflowDecision;
         }
-        return workflowDecision;
+        if (!FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+            if (isLoggingEnabled) {
+                LOG.error("Failed to get Sift workflow decision. Status: " + responseDTO.getStatus());
+            }
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Failed to get Sift workflow decision. Status: " + responseDTO.getStatus());
+            }
+        }
+        return StringUtils.EMPTY;
     }
 
 }

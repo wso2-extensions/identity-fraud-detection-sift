@@ -25,6 +25,7 @@ import org.wso2.carbon.identity.application.authentication.framework.config.mode
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.fraud.detection.core.IdentityFraudDetector;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
+import org.wso2.carbon.identity.fraud.detection.core.model.FraudDetectorResponseDTO;
 import org.wso2.carbon.identity.fraud.detection.sift.Constants;
 import org.wso2.carbon.identity.fraud.detection.sift.internal.SiftDataHolder;
 import org.wso2.carbon.identity.fraud.detection.sift.models.SiftFraudDetectorRequestDTO;
@@ -64,13 +65,21 @@ public class PublishLoginToSiftFunctionImpl implements PublishLoginToSiftFunctio
         requestDTO.setLogRequestPayload(isLoggingEnabled);
 
         IdentityFraudDetector siftFraudDetector = SiftDataHolder.getInstance().getSiftFraudDetector();
-        SiftFraudDetectorResponseDTO responseDTO =
-                (SiftFraudDetectorResponseDTO) siftFraudDetector.publishRequest(requestDTO);
-        if (LOG.isDebugEnabled()) {
-            if (FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+        FraudDetectorResponseDTO responseDTO = siftFraudDetector.publishRequest(requestDTO);
+        if (responseDTO instanceof SiftFraudDetectorResponseDTO &&
+                FraudDetectionConstants.ExecutionStatus.SUCCESS.equals(responseDTO.getStatus())) {
+            if (LOG.isDebugEnabled()) {
                 LOG.debug("Successfully published login event information to Sift.");
-            } else {
+            }
+            if (isLoggingEnabled) {
+                LOG.info("Successfully published login event information to Sift.");
+            }
+        } else {
+            if (LOG.isDebugEnabled()) {
                 LOG.debug("Failed to publish login event information to Sift. Status: " + responseDTO.getStatus());
+            }
+            if (isLoggingEnabled) {
+                LOG.error("Failed to publish login event information to Sift. Status: " + responseDTO.getStatus());
             }
         }
     }
