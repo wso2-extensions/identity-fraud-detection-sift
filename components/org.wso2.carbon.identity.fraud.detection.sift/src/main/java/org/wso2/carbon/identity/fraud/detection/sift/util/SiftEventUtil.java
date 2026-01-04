@@ -28,6 +28,7 @@ import org.wso2.carbon.identity.application.authentication.framework.exception.F
 import org.wso2.carbon.identity.application.authentication.framework.exception.UserSessionException;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.model.User;
+import org.wso2.carbon.identity.core.context.util.IdentityContextUtil;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
@@ -60,7 +61,6 @@ import static org.wso2.carbon.identity.event.IdentityEventConstants.EventPropert
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_DOMAIN;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.USER_STORE_MANAGER;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.IP_KEY;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.REMOTE_ADDRESS;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_HEADER;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_AGENT_KEY;
 import static org.wso2.carbon.user.core.UserCoreConstants.ClaimTypeURIs.GIVEN_NAME;
@@ -387,8 +387,9 @@ public class SiftEventUtil {
             }
         }
 
-        if (IdentityUtil.threadLocalProperties.get().containsKey(USER_AGENT_HEADER)) {
-            return (String) IdentityUtil.threadLocalProperties.get().get(USER_AGENT_HEADER);
+        String userAgentFromContext = IdentityContextUtil.getClientUserAgent();
+        if (StringUtils.isNotEmpty(userAgentFromContext)) {
+            return userAgentFromContext;
         }
 
         if (LOG.isDebugEnabled()) {
@@ -442,8 +443,9 @@ public class SiftEventUtil {
             }
         }
 
-        if (IdentityUtil.threadLocalProperties.get().containsKey(REMOTE_ADDRESS)) {
-            return (String) IdentityUtil.threadLocalProperties.get().get(REMOTE_ADDRESS);
+        String ipAddressFromContext = IdentityContextUtil.getClientIpAddress();
+        if (StringUtils.isNotEmpty(ipAddressFromContext)) {
+            return ipAddressFromContext;
         }
 
         if (LOG.isDebugEnabled()) {

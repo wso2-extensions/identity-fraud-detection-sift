@@ -117,7 +117,6 @@ public class Constants {
     public static final String CUSTOM_PARAMS = "customParams";
     public static final String AUTHENTICATION_CONTEXT = "authenticationContext";
     public static final String USERNAME_USER_INPUT = "usernameUserInput";
-    public static final String USER_SELF_REGISTRATION_FLOW = "isUserSelfRegistrationFlow";
 
     /**
      * Enum to hold the login status.
