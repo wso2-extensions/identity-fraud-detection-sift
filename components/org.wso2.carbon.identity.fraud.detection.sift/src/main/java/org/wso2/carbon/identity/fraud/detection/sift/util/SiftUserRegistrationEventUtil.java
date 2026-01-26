@@ -20,6 +20,8 @@ package org.wso2.carbon.identity.fraud.detection.sift.util;
 import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.CreateAccountFieldSet;
 import com.siftscience.model.EventResponseBody;
+import org.wso2.carbon.identity.core.context.IdentityContext;
+import org.wso2.carbon.identity.core.context.model.Flow;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
@@ -33,7 +35,6 @@ import java.util.Map;
 
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_CREATED_BY_ADMIN;
-import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_SELF_REGISTRATION_FLOW;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveFullName;
@@ -74,7 +75,7 @@ public class SiftUserRegistrationEventUtil {
                     .setPhone(validatedMobileNumber)
                     .setVerificationPhoneNumber(validatedMobileNumber)
                     .setName(resolveFullName(properties))
-                    .setCustomField(USER_CREATED_BY_ADMIN, !resolveIsSelfRegistrationFlow(properties))
+                    .setCustomField(USER_CREATED_BY_ADMIN, !resolveIsSelfRegistrationFlow())
                     .setCustomField(USER_UUID, resolveUserUUID(properties));
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
@@ -108,12 +109,11 @@ public class SiftUserRegistrationEventUtil {
     /**
      * Resolves whether the user registration flow is a self-registration flow.
      *
-     * @param properties Map of properties.
      * @return true if it is a self-registration flow, false otherwise.
      */
-    private static boolean resolveIsSelfRegistrationFlow(Map<String, Object> properties) {
+    private static boolean resolveIsSelfRegistrationFlow() {
 
-        return properties.containsKey(USER_SELF_REGISTRATION_FLOW)
-                && (Boolean) properties.get(USER_SELF_REGISTRATION_FLOW);
+        Flow flow = IdentityContext.getThreadLocalIdentityContext().getCurrentFlow();
+        return Flow.Name.REGISTER == flow.getName() && Flow.InitiatingPersona.USER == flow.getInitiatingPersona();
     }
 }
