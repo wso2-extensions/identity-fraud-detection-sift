@@ -269,7 +269,7 @@
         <jacoco.version>0.8.4</jacoco.version>
         <httpclient.version>4.5.13.wso2v1</httpclient.version>
         <mockito.version>5.3.1</mockito.version>
-        <org.osgi.service.imp.pkg.version.range>[1.2.2,1.3.0)</org.osgi.service.imp.pkg.version.range>
+        <org.osgi.service.imp.pkg.version.range>[1.2.2,2.0.0)</org.osgi.service.imp.pkg.version.range>
         <org.osgi.framework.imp.pkg.version.range>[1.9.0,2.0.0)</org.osgi.framework.imp.pkg.version.range>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -277,7 +277,7 @@
         <maven.spotbugsplugin.version>4.8.4.0</maven.spotbugsplugin.version>
         <com.google.code.gson.version>2.8.9</com.google.code.gson.version>
         <com.google.code.gson.osgi.version.range>[2.3.1,3.0.0)</com.google.code.gson.osgi.version.range>
-        <import.package.version.javax.servlet>[2.6.0,3.0.0)</import.package.version.javax.servlet>
+        <import.package.version.javax.servlet>[3.1.0, 4.0.0)</import.package.version.javax.servlet>
     </properties>
 
 </project>
