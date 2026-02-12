@@ -28,7 +28,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.wso2.carbon.identity.fraud.detection.sift</groupId>
     <artifactId>identity-fraud-detection-sift</artifactId>
-    <version>2.1.0</version>
+    <version>2.1.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>WSO2 Carbon - Identity Fraud Detection Sift</name>
     <url>http://wso2.org</url>
@@ -38,7 +38,7 @@
         <developerConnection>scm:git:https://github.com/wso2-extensions/identity-fraud-detection-sift.git
         </developerConnection>
         <connection>scm:git:https://github.com/wso2-extensions/identity-fraud-detection-sift.git</connection>
-        <tag>v2.1.0</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <modules>
