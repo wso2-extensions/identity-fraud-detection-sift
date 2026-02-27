@@ -20,6 +20,8 @@ package org.wso2.carbon.identity.fraud.detection.sift.util;
 import com.siftscience.exception.InvalidFieldException;
 import com.siftscience.model.EventResponseBody;
 import com.siftscience.model.UpdateAccountFieldSet;
+import org.wso2.carbon.identity.core.context.IdentityContext;
+import org.wso2.carbon.identity.core.context.model.Flow;
 import org.wso2.carbon.identity.fraud.detection.core.constant.FraudDetectionConstants;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionRequestException;
 import org.wso2.carbon.identity.fraud.detection.core.exception.IdentityFraudDetectionResponseException;
@@ -31,9 +33,6 @@ import org.wso2.carbon.user.core.UserCoreConstants;
 
 import java.util.Map;
 
-import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.SCENARIO;
-import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.Scenario.ScenarioTypes.POST_USER_PROFILE_UPDATE_BY_ADMIN;
-import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.Scenario.ScenarioTypes.POST_USER_PROFILE_UPDATE_BY_USER;
 import static org.wso2.carbon.identity.event.IdentityEventConstants.EventProperty.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_PROFILE_UPDATED_BY_ADMIN;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
@@ -76,7 +75,7 @@ public class SiftUserProfileUpdateEventUtil {
                     .setName(resolveFullName(properties))
                     .setBrowser(resolveBrowser(resolveUserAgent(properties)))
                     .setIp(resolveRemoteAddress(properties))
-                    .setCustomField(USER_PROFILE_UPDATED_BY_ADMIN, isProfileUpdateByAdmin(properties))
+                    .setCustomField(USER_PROFILE_UPDATED_BY_ADMIN, isProfileUpdateByAdmin())
                     .setCustomField(USER_UUID, resolveUserUUID(properties));
             fieldSet.validate();
             return setAPIKey(fieldSet, tenantDomain);
@@ -110,22 +109,25 @@ public class SiftUserProfileUpdateEventUtil {
     /**
      * Determines if the profile update was performed by an admin.
      *
-     * @param properties Map of event properties.
      * @return true if updated by admin, false if by user.
      * @throws IdentityFraudDetectionRequestException if the scenario is invalid.
      */
-    private static boolean isProfileUpdateByAdmin(Map<String, Object> properties)
-            throws IdentityFraudDetectionRequestException {
+    private static boolean isProfileUpdateByAdmin() throws IdentityFraudDetectionRequestException {
 
-        String scenario = (String) properties.get(SCENARIO);
-        if (POST_USER_PROFILE_UPDATE_BY_ADMIN.equals(scenario)) {
-            return true;
-        } else if (POST_USER_PROFILE_UPDATE_BY_USER.equals(scenario)) {
-            return false;
+        if (IdentityContext.getThreadLocalIdentityContext().getCurrentFlow().getInitiatingPersona() == null) {
+            throw new IdentityFraudDetectionRequestException("Unable to determine profile update initiator. " +
+                    "Initiating persona is null in the current flow.");
         }
 
-        throw new IdentityFraudDetectionRequestException("Unable to determine profile update initiator. " +
-                "Invalid scenario: " + scenario);
+        String persona = IdentityContext.getThreadLocalIdentityContext().getCurrentFlow().getInitiatingPersona().name();
+        if (Flow.InitiatingPersona.ADMIN.name().equalsIgnoreCase(persona)) {
+            return true;
+        } else if (Flow.InitiatingPersona.USER.name().equalsIgnoreCase(persona)) {
+            return false;
+        } else {
+            throw new IdentityFraudDetectionRequestException("Unable to determine profile update initiator. " +
+                    "Invalid initiating persona: " + persona);
+        }
     }
 
 }

@@ -256,7 +256,7 @@ public class SiftUpdatePasswordEventUtil {
             if (FORCED_RESET.getValue().equals(reason)) {
                 isActionPerformedByAdmin = true;
             }
-        } else if (SUCCESS.getValue().equals(reason)) {
+        } else if (SUCCESS.getValue().equals(status)) {
             if (FORCED_RESET.getValue().equals(reason) && POST_CREDENTIAL_UPDATE_BY_ADMIN.equals(scenario)) {
                 isActionPerformedByAdmin = true;
             }
