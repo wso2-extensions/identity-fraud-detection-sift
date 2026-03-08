@@ -68,6 +68,7 @@ import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_DECIS
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.SIFT_SESSION;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USERNAME_USER_INPUT;
 import static org.wso2.carbon.identity.fraud.detection.sift.Constants.USER_UUID;
+import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.isAllowUserInfoInPayload;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveBrowser;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.resolveUserUUID;
 import static org.wso2.carbon.identity.fraud.detection.sift.util.SiftEventUtil.validateMobileNumberFormat;
@@ -375,10 +376,15 @@ public class SiftLoginEventUtil {
      * @param properties Map of properties related to the event.
      * @return Resolved username.
      */
-    private static String resolveUsername(Map<String, Object> properties) {
+    private static String resolveUsername(Map<String, Object> properties)
+            throws IdentityFraudDetectionRequestException {
 
         AuthenticationContext authenticationContext = resolveAuthenticationContext(properties);
         if (authenticationContext == null) {
+            return null;
+        }
+        if (authenticationContext.getTenantDomain() == null ||
+                !isAllowUserInfoInPayload(authenticationContext.getTenantDomain())) {
             return null;
         }
 
