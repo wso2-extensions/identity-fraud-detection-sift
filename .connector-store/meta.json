@@ -52,6 +52,13 @@
       "tagName": "v4.0.0",
       "products": [
         "IS 7.2.0"
+      ],
+      "isHidden": true
+    },
+    {
+      "tagName": "v4.1.2",
+      "products": [
+        "IS 7.3.0"
       ]
     }
   ]
